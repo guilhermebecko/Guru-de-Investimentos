@@ -281,6 +281,7 @@ impl Db {
                 "ipca" => "IPCA",
                 "tesouro" => "Tesouro Direto",
                 "b3" => "B3",
+                "cvm" => "CVM (cotas de fundos)",
                 outro => outro,
             };
             let data = s.ultima_data.as_deref().and_then(data_iso);

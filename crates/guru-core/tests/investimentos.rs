@@ -246,7 +246,7 @@ fn migra_banco_da_versao_1() {
         .unwrap();
     }
     let db = Db::open(dir.path()).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 8);
-    assert_eq!(SCHEMA_VERSION, 8);
+    assert_eq!(db.schema_version().unwrap(), 9);
+    assert_eq!(SCHEMA_VERSION, 9);
     assert!(db.listar_investimentos(hoje()).unwrap().is_empty());
 }

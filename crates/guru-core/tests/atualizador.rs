@@ -173,8 +173,9 @@ fn primeira_atualizacao_grava_tudo_sem_erro() {
     let r = atualizar(&db, &falso, hoje(), &esperas.fecha()).unwrap();
 
     assert!(r.novos > 0);
-    assert_eq!(r.fontes.len(), 5);
-    for f in &r.fontes {
+    assert_eq!(r.fontes.len(), 6);
+    // A `cvm` só passa a ser atualizada na Task 3.
+    for f in r.fontes.iter().filter(|f| f.fonte != "cvm") {
         assert_eq!(f.erro, None, "{}", f.fonte);
         assert!(f.atualizado_em.is_some(), "{}", f.fonte);
     }
@@ -255,7 +256,7 @@ fn falha_do_cdi_fica_no_status_e_o_resto_segue() {
     );
     assert_eq!(esperas.0.get(), 1);
     assert_eq!(falso.com("bcdata.sgs.12").len(), 2);
-    assert_eq!(r.fontes.len(), 5);
+    assert_eq!(r.fontes.len(), 6);
 }
 
 #[test]

@@ -25,7 +25,7 @@ test("abre com título e mostra a versão do esquema", async () => {
   try {
     const page = await app.firstWindow();
     expect(await page.title()).toBe("Guru de Investimentos");
-    await expect(page.getByTestId("schema-version")).toHaveText("8");
+    await expect(page.getByTestId("schema-version")).toHaveText("9");
     await expect(page.getByTestId("core-version")).not.toBeEmpty();
     await expect(page.getByTestId("app-version")).toHaveText("0.9.0");
     expect(fs.existsSync(path.join(dataDir, "guru.db"))).toBe(true);
@@ -253,6 +253,7 @@ test("mercado pelo api: status das cinco fontes sem rede", async () => {
       "IPCA",
       "Tesouro Direto",
       "Cotações da B3",
+      "Cotas de fundos (CVM)",
     ]);
   } finally {
     await app.close();

@@ -12,7 +12,7 @@ function el(tag, texto, classe) {
 // O IPCA fica de fora de propósito: ele é mensal e sua `ultimaData` é o primeiro dia do mês
 // publicado (YYYY-MM-01), que sempre ficaria "atrás" das séries diárias sem indicar defasagem.
 export function menorData(fontes) {
-  const datas = (fontes ?? []).filter((f) => f.fonte !== "ipca" && f.ultimaData).map((f) => f.ultimaData);
+  const datas = (fontes ?? []).filter((f) => f.fonte !== "ipca" && f.fonte !== "cvm" && f.ultimaData).map((f) => f.ultimaData);
   return datas.length === 0 ? null : datas.reduce((a, b) => (b < a ? b : a));
 }
 

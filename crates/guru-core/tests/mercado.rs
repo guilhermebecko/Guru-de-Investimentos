@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use guru_core::{
-    Db, PontoDiario, PrecoTesouro, SCHEMA_VERSION, StatusFonte, ler_cotahist_txt, ler_sgs,
-    ler_tesouro,
+    CotaFundo, Db, PontoDiario, PrecoTesouro, SCHEMA_VERSION, StatusFonte, ler_cotahist_txt,
+    ler_sgs, ler_tesouro,
 };
 use rust_decimal::Decimal;
 
@@ -161,11 +161,11 @@ fn preco_tesouro_pega_o_ultimo_anterior_entre_varios() {
 }
 
 #[test]
-fn status_fontes_num_banco_novo_devolve_as_cinco_vazias() {
+fn status_fontes_tem_seis_na_ordem() {
     let (_d, db) = banco();
     let s = db.status_fontes().unwrap();
     let nomes: Vec<&str> = s.iter().map(|x| x.fonte.as_str()).collect();
-    assert_eq!(nomes, ["cdi", "selic", "ipca", "tesouro", "b3"]);
+    assert_eq!(nomes, ["cdi", "selic", "ipca", "tesouro", "b3", "cvm"]);
     assert!(
         s.iter()
             .all(|x| x.ultima_data.is_none() && x.atualizado_em.is_none() && x.erro.is_none())
@@ -222,8 +222,8 @@ fn migra_banco_da_versao_3() {
         conn.pragma_update(None, "user_version", 3).unwrap();
     }
     let db = Db::open(dir.path()).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 8);
-    assert_eq!(SCHEMA_VERSION, 8);
+    assert_eq!(db.schema_version().unwrap(), 9);
+    assert_eq!(SCHEMA_VERSION, 9);
     let conn = rusqlite::Connection::open(db.path()).unwrap();
     let n: i64 = conn
         .query_row("SELECT COUNT(*) FROM investimentos", [], |r| r.get(0))
@@ -235,5 +235,30 @@ fn migra_banco_da_versao_3() {
             .unwrap();
         assert_eq!(n, 1, "{tabela}");
     }
-    assert_eq!(db.status_fontes().unwrap().len(), 5);
+    assert_eq!(db.status_fontes().unwrap().len(), 6);
+}
+
+#[test]
+fn cotas_de_fundo_upsert_e_busca() {
+    let (_d, db) = banco();
+    let c = |d: u32, v: &str| CotaFundo {
+        cnpj: "11222333000181".into(),
+        data: data(2026, 11, d),
+        cota: v.parse().unwrap(),
+    };
+    let cnpj = "11222333000181";
+    assert_eq!(
+        db.gravar_cotas_fundo(&[c(3, "1.10"), c(4, "1.20"), c(5, "1.30")])
+            .unwrap(),
+        3
+    );
+    assert_eq!(db.gravar_cotas_fundo(&[c(5, "1.35")]).unwrap(), 0);
+    let (d, v) = db.cota_fundo_em(cnpj, data(2026, 11, 8)).unwrap().unwrap();
+    assert_eq!(d, data(2026, 11, 5));
+    assert_eq!(v, "1.35".parse::<Decimal>().unwrap());
+    assert_eq!(db.cota_fundo_em(cnpj, data(2026, 11, 2)).unwrap(), None);
+    assert_eq!(
+        db.ultima_data_cota_fundo().unwrap(),
+        Some(data(2026, 11, 5))
+    );
 }
