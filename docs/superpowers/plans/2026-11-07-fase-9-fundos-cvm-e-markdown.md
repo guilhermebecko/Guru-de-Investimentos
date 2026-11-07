@@ -38,7 +38,7 @@ O usuário cadastrou fundos à mão e o app diz "sem fonte de preço". Hoje só 
   - Com `d` antes da `data_aplicacao`, o valor é `SemDados`, como nas outras classes.
 - **Fundo sem CNPJ, previdência e cripto:** nada muda (fase 8).
 - **Atualização: fonte `cvm`, a sexta, depois de `b3`.**
-  - Só roda se a carteira tem algum fundo com CNPJ válido. Sem nenhum, a fonte fica intocada e nunca atualizada.
+  - Só roda se a carteira tem algum fundo com CNPJ válido. Sem nenhum, nada é baixado e o status da fonte é apagado (ela volta a "nunca atualizada"), para não pedir atualização nem mostrar erro antigo depois que o último CNPJ sai da carteira.
   - Meses que cada fundo precisa:
     - o mês da `data_aplicacao`;
     - o mês da `saldo_data`, se existir;
