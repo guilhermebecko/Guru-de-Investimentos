@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use chrono::{Days, NaiveDate};
 use guru_core::{
-    Db, Gravacao, NovaMeta, NovoInvestimento, Origem, PontoDiario, PrecoTesouro, ler_cotahist_txt,
-    ler_sgs, ler_tesouro,
+    CotaFundo, Db, Gravacao, NovaMeta, NovoInvestimento, Origem, PontoDiario, PrecoTesouro,
+    ler_cotahist_txt, ler_sgs, ler_tesouro,
 };
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
@@ -422,6 +422,7 @@ fn origem_tem_codigo_e_rotulo() {
         (Origem::Calculo, "calculo", "calculado pelo índice"),
         (Origem::Tesouro, "tesouro", "preço do Tesouro"),
         (Origem::Cotacao, "cotacao", "cotação da B3"),
+        (Origem::Cota, "cota", "cota diária da CVM"),
         (Origem::SemFonte, "sem_fonte", "sem fonte de preço"),
         (Origem::SemDados, "sem_dados", "sem dados ainda"),
     ];
@@ -553,4 +554,156 @@ fn saldo_futuro_nao_vale_para_datas_anteriores() {
     let i = db.investimento(id, data(2026, 10, 1)).unwrap();
     assert_eq!(i.valor_atual_centavos, 100_000);
     assert_eq!(i.origem_valor, Origem::SemFonte);
+}
+
+const CNPJ_FUNDO: &str = "11222333000181";
+
+fn cotas(db: &Db, itens: &[((i32, u32, u32), &str)]) {
+    let v: Vec<CotaFundo> = itens
+        .iter()
+        .map(|&((a, m, d), c)| CotaFundo {
+            cnpj: CNPJ_FUNDO.into(),
+            data: data(a, m, d),
+            cota: Decimal::from_str(c).unwrap(),
+        })
+        .collect();
+    db.gravar_cotas_fundo(&v).unwrap();
+}
+
+fn fundo_cnpj(
+    dir: &tempfile::TempDir,
+    db: &Db,
+    aplicacao: &str,
+    aplicado: i64,
+    cnpj: Option<&str>,
+) -> i64 {
+    let id = criar(
+        db,
+        NovoInvestimento {
+            tipo: "fundo".into(),
+            instituicao: "BTG Pactual".into(),
+            emissor: s("Fundo X"),
+            data_aplicacao: s(aplicacao),
+            valor_aplicado_centavos: Some(aplicado),
+            liquidez: s("diaria"),
+            ..Default::default()
+        },
+    );
+    if let Some(c) = cnpj {
+        let conn = rusqlite::Connection::open(dir.path().join("guru.db")).unwrap();
+        conn.execute(
+            "UPDATE investimentos SET codigo_b3 = ?1 WHERE id = ?2",
+            rusqlite::params![c, id],
+        )
+        .unwrap();
+    }
+    id
+}
+
+fn grava_saldo(dir: &tempfile::TempDir, id: i64, saldo: i64, em: &str) {
+    let conn = rusqlite::Connection::open(dir.path().join("guru.db")).unwrap();
+    conn.execute(
+        "UPDATE investimentos SET saldo_centavos = ?1, saldo_data = ?2 WHERE id = ?3",
+        rusqlite::params![saldo, em, id],
+    )
+    .unwrap();
+}
+
+#[test]
+fn fundo_manual_pela_cota() {
+    let (d, db) = vazio();
+    cotas(&db, &[((2026, 9, 8), "1.40"), ((2026, 11, 5), "1.4989")]);
+    let id = fundo_cnpj(&d, &db, "2026-09-08", 3_000_000, Some(CNPJ_FUNDO));
+    let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::Cota);
+    assert_eq!(i.origem_valor.codigo(), "cota");
+    assert_eq!(i.origem_valor.rotulo(), "cota diária da CVM");
+    assert_eq!(i.valor_atual_centavos, 3_211_928);
+    assert_eq!(i.data_valor, Some(data(2026, 11, 5)));
+}
+
+#[test]
+fn fundo_aplicado_no_fim_de_semana_usa_cota_anterior() {
+    let (d, db) = vazio();
+    cotas(
+        &db,
+        &[
+            ((2026, 9, 4), "1.40"),
+            ((2026, 9, 8), "1.50"),
+            ((2026, 11, 5), "1.4989"),
+        ],
+    );
+    // Domingo 06/09: a cota base é a de 04/09.
+    let id = fundo_cnpj(&d, &db, "2026-09-06", 1_400_000, Some(CNPJ_FUNDO));
+    let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.valor_atual_centavos, 1_498_900);
+}
+
+#[test]
+fn fundo_com_saldo_projeta_o_saldo() {
+    let (d, db) = vazio();
+    cotas(&db, &[((2026, 10, 30), "2.00"), ((2026, 11, 5), "2.02")]);
+    let id = fundo_cnpj(&d, &db, "2026-01-10", 4_000_000, Some(CNPJ_FUNDO));
+    grava_saldo(&d, id, 5_000_000, "2026-10-31");
+    let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.valor_atual_centavos, 5_050_000);
+    assert_eq!(i.origem_valor, Origem::Cota);
+    let i = db.investimento(id, data(2026, 10, 31)).unwrap();
+    assert_eq!(i.valor_atual_centavos, 5_000_000);
+    assert_eq!(i.origem_valor, Origem::Extrato);
+}
+
+#[test]
+fn fundo_com_cnpj_sem_cotas() {
+    let (d, db) = vazio();
+    let id = fundo_cnpj(&d, &db, "2026-01-10", 100_000, Some(CNPJ_FUNDO));
+    let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::SemDados);
+    assert_eq!(i.valor_atual_centavos, 100_000);
+    grava_saldo(&d, id, 105_000, "2026-10-30");
+    let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::Extrato);
+    assert_eq!(i.valor_atual_centavos, 105_000);
+}
+
+#[test]
+fn fundo_sem_cnpj_continua_sem_fonte() {
+    let (d, db) = vazio();
+    cotas(&db, &[((2026, 1, 10), "1.00"), ((2026, 11, 5), "2.00")]);
+    let id = fundo_cnpj(&d, &db, "2026-01-10", 100_000, None);
+    let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::SemFonte);
+    assert_eq!(i.valor_atual_centavos, 100_000);
+}
+
+#[test]
+fn prev_e_cripto_nao_mudam() {
+    let (_d, db) = vazio();
+    cotas(&db, &[((2026, 1, 10), "1.00"), ((2026, 11, 5), "2.00")]);
+    for tipo in ["prev", "cripto"] {
+        let id = criar(
+            &db,
+            NovoInvestimento {
+                tipo: tipo.into(),
+                instituicao: "X".into(),
+                emissor: s("X"),
+                data_aplicacao: s("2026-01-10"),
+                valor_aplicado_centavos: Some(100_000),
+                liquidez: s("diaria"),
+                ..Default::default()
+            },
+        );
+        let i = db.investimento(id, data(2026, 11, 7)).unwrap();
+        assert_eq!(i.origem_valor, Origem::SemFonte, "{tipo}");
+    }
+}
+
+#[test]
+fn fundo_antes_da_aplicacao_sem_dados() {
+    let (d, db) = vazio();
+    cotas(&db, &[((2026, 9, 8), "1.40"), ((2026, 11, 5), "1.50")]);
+    let id = fundo_cnpj(&d, &db, "2026-09-08", 100_000, Some(CNPJ_FUNDO));
+    let i = db.investimento(id, data(2026, 9, 1)).unwrap();
+    assert_eq!(i.origem_valor, Origem::SemDados);
+    assert_eq!(i.valor_atual_centavos, 100_000);
 }

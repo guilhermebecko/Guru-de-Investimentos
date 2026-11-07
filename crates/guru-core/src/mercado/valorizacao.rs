@@ -11,7 +11,8 @@ use rust_decimal::prelude::ToPrimitive;
 use super::{PontoDiario, titulo_tesouro};
 use crate::db::Db;
 use crate::error::CoreError;
-use crate::investimento::{Benchmark, Indexador, Investimento};
+
+use crate::investimento::{Benchmark, Indexador, Investimento, normalizar_cnpj};
 
 /// Dias úteis por ano da convenção dos prefixados.
 const DIAS_UTEIS_ANO: i64 = 252;
@@ -26,6 +27,7 @@ pub enum Origem {
     Tesouro,
     Cotacao,
     Extrato,
+    Cota,
     SemFonte,
     SemDados,
 }
@@ -37,6 +39,7 @@ impl Origem {
             Origem::Tesouro => "tesouro",
             Origem::Cotacao => "cotacao",
             Origem::Extrato => "extrato",
+            Origem::Cota => "cota",
             Origem::SemFonte => "sem_fonte",
             Origem::SemDados => "sem_dados",
         }
@@ -48,6 +51,7 @@ impl Origem {
             Origem::Tesouro => "preço do Tesouro",
             Origem::Cotacao => "cotação da B3",
             Origem::Extrato => "saldo do extrato da corretora",
+            Origem::Cota => "cota diária da CVM",
             Origem::SemFonte => "sem fonte de preço",
             Origem::SemDados => "sem dados ainda",
         }
@@ -113,13 +117,30 @@ pub(crate) fn valorizar_com(
 ) -> Result<Valor, CoreError> {
     let aplicado = inv.valor_aplicado_centavos;
     if inv.tipo == "fundo" || inv.tipo == "prev" || inv.tipo == "cripto" {
-        if let (Some(saldo), Some(saldo_data)) = (inv.saldo_centavos, inv.saldo_data.as_deref())
-            && let Ok(ref_) = NaiveDate::parse_from_str(saldo_data, "%Y-%m-%d")
-            && ref_ <= data
+        let saldo = saldo_ate(inv, data);
+        let do_extrato = || match saldo {
+            Some((s, ref_)) => com_atual(aplicado, s, Origem::Extrato, Some(ref_)),
+            None => valor(aplicado, Origem::SemFonte, None),
+        };
+        if inv.tipo == "fundo"
+            && let Some(cnpj) = inv.codigo_b3.as_deref().and_then(normalizar_cnpj)
         {
-            return Ok(com_atual(aplicado, saldo, Origem::Extrato, Some(ref_)));
+            let aplicacao =
+                NaiveDate::parse_from_str(&inv.data_aplicacao, "%Y-%m-%d").map_err(|_| {
+                    CoreError::DbInvalid("investimento com data inválida no banco".into())
+                })?;
+            if data < aplicacao {
+                return Ok(sem_dados(aplicado));
+            }
+            if let Some(v) = fundo_pela_cota(db, inv, &cnpj, saldo, aplicacao, data)? {
+                return Ok(v);
+            }
+            return Ok(match saldo {
+                Some(_) => do_extrato(),
+                None => sem_dados(aplicado),
+            });
         }
-        return Ok(valor(aplicado, Origem::SemFonte, None));
+        return Ok(do_extrato());
     }
     let aplicacao = NaiveDate::parse_from_str(&inv.data_aplicacao, "%Y-%m-%d")
         .map_err(|_| CoreError::DbInvalid("investimento com data inválida no banco".into()))?;
@@ -136,6 +157,48 @@ pub(crate) fn valorizar_com(
         None
     };
     Ok(calculado.unwrap_or_else(|| sem_dados(aplicado)))
+}
+
+/// Saldo do extrato e a data dele, quando existe e não é posterior a `data`.
+fn saldo_ate(inv: &Investimento, data: NaiveDate) -> Option<(i64, NaiveDate)> {
+    let saldo = inv.saldo_centavos?;
+    let ref_ = NaiveDate::parse_from_str(inv.saldo_data.as_deref()?, "%Y-%m-%d").ok()?;
+    (ref_ <= data).then_some((saldo, ref_))
+}
+
+/// Valor do fundo pela cota da CVM: a base (saldo do extrato ou valor aplicado) corrigida pela
+/// variação da cota entre a data da base e a última cota até `data`. `None` quando falta cota,
+/// quando não há cota mais nova que a do saldo ou quando a conta estoura.
+fn fundo_pela_cota(
+    db: &Db,
+    inv: &Investimento,
+    cnpj: &str,
+    saldo: Option<(i64, NaiveDate)>,
+    aplicacao: NaiveDate,
+    data: NaiveDate,
+) -> Result<Option<Valor>, CoreError> {
+    let (base, base_data) = saldo.unwrap_or((inv.valor_aplicado_centavos, aplicacao));
+    let (Some((data_atual, cota_atual)), Some((data_base, cota_base))) = (
+        db.cota_fundo_em(cnpj, data)?,
+        db.cota_fundo_em(cnpj, base_data)?,
+    ) else {
+        return Ok(None);
+    };
+    if saldo.is_some() && data_atual <= data_base {
+        return Ok(None);
+    }
+    let atual = Decimal::from(base)
+        .checked_mul(cota_atual)
+        .and_then(|v| v.checked_div(cota_base))
+        .and_then(centavos);
+    Ok(atual.map(|a| {
+        com_atual(
+            inv.valor_aplicado_centavos,
+            a,
+            Origem::Cota,
+            Some(data_atual),
+        )
+    }))
 }
 
 /// Valor de `inv` em cada uma de `datas` (em ordem crescente), igual a chamar `valorizar_com`
