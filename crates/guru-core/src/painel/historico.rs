@@ -97,6 +97,17 @@ fn retorno_dietz(
     i64::try_from(dividir_arredondando(num, den)).ok()
 }
 
+/// Os dois valores vêm da mesma fonte: a mesma origem sobre a mesma base. Sobre o mesmo saldo
+/// do extrato, o próprio saldo (`Extrato`) e a projeção dele pela cota (`Cota`) são a mesma
+/// fonte; a cota sobre o aplicado e a cota sobre o saldo, não.
+fn mesma_fonte(a: &Valor, b: &Valor) -> bool {
+    match (a.base_saldo, b.base_saldo) {
+        (Some(x), Some(y)) => x == y,
+        (None, None) => a.origem == b.origem,
+        _ => false,
+    }
+}
+
 /// `Π(1 + r_k) − 1` em centésimos; retorno ausente conta como fator 1.
 fn encadear(acumulado: Decimal, retorno: Option<i64>) -> Option<Decimal> {
     let r = Decimal::from(retorno.unwrap_or(0)) / Decimal::from(10_000);
@@ -181,9 +192,9 @@ pub(super) fn historico_com(
                 v1 = somar(v1, atual)?;
             } else {
                 let antes = &vals[idx - 1];
-                // Mudou de origem (ganhou ou perdeu preço) no intervalo: a custo nas duas
-                // pontas, para o ganho que não é do mês não virar rendimento dele.
-                let (a, b) = if antes.origem == vals[idx].origem {
+                // Mudou de origem (ganhou ou perdeu preço) ou de base no intervalo: a custo
+                // nas duas pontas, para o ganho que não é do mês não virar rendimento dele.
+                let (a, b) = if mesma_fonte(antes, &vals[idx]) {
                     (antes.atual_centavos, atual)
                 } else {
                     (aplicado, aplicado)

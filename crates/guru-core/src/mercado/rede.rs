@@ -15,6 +15,8 @@ const SERIES_SGS: [&str; 3] = ["12", "11", "433"];
 const URL_TESOURO: &str = "https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv";
 const PREFIXO_B3: &str = "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D";
 const SUFIXO_B3: &str = ".ZIP";
+const PREFIXO_CVM: &str = "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_";
+const SUFIXO_CVM: &str = ".zip";
 /// Prazo para resolver, conectar, enviar o pedido e receber o início da resposta.
 const CONECTAR: Duration = Duration::from_secs(60);
 /// Prazo para receber o corpo inteiro (o CSV completo do Tesouro tem ~15 MB).
@@ -32,6 +34,7 @@ pub(crate) enum Destino {
     Sgs { serie: String },
     Tesouro,
     B3 { data: String },
+    Cvm { mes: String },
 }
 
 pub(crate) fn url_sgs(serie: &str, de: NaiveDate, ate: NaiveDate) -> String {
@@ -48,6 +51,10 @@ pub(crate) fn url_tesouro() -> String {
 
 pub(crate) fn url_b3(data: NaiveDate) -> String {
     format!("{PREFIXO_B3}{}{SUFIXO_B3}", data.format("%d%m%Y"))
+}
+
+pub(crate) fn url_cvm(ano: i32, mes: u32) -> String {
+    format!("{PREFIXO_CVM}{ano:04}{mes:02}{SUFIXO_CVM}")
 }
 
 fn data_br_exata(s: &str) -> bool {
@@ -74,6 +81,17 @@ pub(crate) fn classificar(url: &str) -> Option<Destino> {
         if data.len() == 8 && NaiveDate::parse_from_str(data, "%d%m%Y").is_ok() {
             return Some(Destino::B3 {
                 data: data.to_string(),
+            });
+        }
+    }
+    if let Some(resto) = url.strip_prefix(PREFIXO_CVM) {
+        let mes = resto.strip_suffix(SUFIXO_CVM)?;
+        if mes.len() == 6
+            && mes.bytes().all(|b| b.is_ascii_digit())
+            && NaiveDate::parse_from_str(&format!("{mes}01"), "%Y%m%d").is_ok()
+        {
+            return Some(Destino::Cvm {
+                mes: mes.to_string(),
             });
         }
     }
@@ -138,7 +156,7 @@ impl Baixador for BaixadorHttp {
 }
 
 /// Modo de teste: cada URL vira um arquivo da pasta (`sgs-<série>.json`, `tesouro.csv`,
-/// `COTAHIST_D<ddMMaaaa>.ZIP`); arquivo ausente responde 404.
+/// `COTAHIST_D<ddMMaaaa>.ZIP`, `inf_diario_fi_<AAAAMM>.zip`); arquivo ausente responde 404.
 pub struct BaixadorPasta {
     pub pasta: PathBuf,
 }
@@ -149,6 +167,7 @@ impl Baixador for BaixadorPasta {
             Some(Destino::Sgs { serie }) => format!("sgs-{serie}.json"),
             Some(Destino::Tesouro) => "tesouro.csv".to_string(),
             Some(Destino::B3 { data }) => format!("COTAHIST_D{data}.ZIP"),
+            Some(Destino::Cvm { mes }) => format!("inf_diario_fi_{mes}.zip"),
             None => return Err(ErroFonte::Rede("destino não permitido".into())),
         };
         std::fs::read(self.pasta.join(nome)).map_err(|_| ErroFonte::Status(404))
@@ -177,6 +196,20 @@ mod testes {
     }
 
     #[test]
+    fn url_cvm_e_permitida() {
+        assert_eq!(
+            url_cvm(2026, 11),
+            "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202611.zip"
+        );
+        assert_eq!(
+            classificar(&url_cvm(2026, 11)),
+            Some(Destino::Cvm {
+                mes: "202611".into()
+            })
+        );
+    }
+
+    #[test]
     fn url_sgs_tem_o_formato_oficial() {
         assert_eq!(
             url_sgs("12", d(2026, 9, 1), d(2026, 10, 28)),
@@ -196,6 +229,11 @@ mod testes {
             "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D99999999.ZIP",
             "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D28102026.ZIP?a=b",
             "https://www.tesourotransparente.gov.br/ckan/outro.csv",
+            "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202613.zip",
+            "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_2026.zip",
+            "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/HIST/inf_diario_fi_2020.zip",
+            "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202611.zip?x=1",
+            "http://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_202611.zip",
             "",
         ];
         for u in ruins {

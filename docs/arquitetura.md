@@ -72,6 +72,8 @@ Dados de mercado ficam em sete tabelas, criadas pela migração `0004`:
 
 A migração `0005` acrescenta `investimentos.codigo_b3` (código do ativo na planilha: ticker na renda variável, `Código` na renda fixa, ISIN ou `<tipo>:<vencimento>` no Tesouro) e a tabela `importacao`, com a data, o nome do arquivo, o total de linhas e quantas foram aplicadas em cada importação.
 
+A migração `0009` acrescenta a tabela `cota_fundo`, com a cota diária de cada fundo por CNPJ e data (`cnpj`, `data`, `cota` em texto decimal), lida do arquivo mensal da CVM.
+
 ## Segurança da janela
 
 - `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`.
@@ -90,6 +92,7 @@ Só a Anthropic recebe dado do usuário, com a chave dele e só as partes do con
 | `api.bcb.gov.br` (SGS) | Selic e CDI; IPCA pela série 433 do SGS (dado do IBGE publicado pelo Banco Central) | 3 |
 | Tesouro Transparente | Taxas e preços do Tesouro Direto | 3 |
 | B3, série histórica (arquivo diário COTAHIST) | Preço de fechamento de ações, FIIs e ETFs | 3 |
+| `https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_AAAAMM.zip` (GET) | Cota diária dos fundos por CNPJ, um arquivo por mês | 9 |
 | `https://api.anthropic.com/v1/messages` (POST) | Perguntas ao Claude, com a chave do usuário | 6a |
 | `https://api.anthropic.com/v1/messages` (POST) | Insights e notícias do painel da Carteira, só pelos botões | 6b |
 | `https://api.anthropic.com/v1/models?limit=1` (GET) | Conferir a chave ao salvar, sem custo | 6a |

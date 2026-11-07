@@ -746,3 +746,79 @@ fn desempenho_de_300_cdbs_em_doze_meses() {
     assert_eq!(p.historico.pontos.len(), 13);
     assert!(tempo.as_millis() < 250, "{tempo:?}");
 }
+
+// ---- Fundo pela cota da CVM: a troca de base (aplicado → saldo) não é rentabilidade ----
+
+/// Fundo fictício aplicado em 31/03/2026 com R$ 10.000, CNPJ e saldo do extrato em `saldo_em`
+/// (R$ 11.000). A cota fica parada até julho e sobe 1% em agosto.
+fn fundo_com_saldo(saldo_em: &str) -> (tempfile::TempDir, Db) {
+    use guru_core::CotaFundo;
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(dir.path()).unwrap();
+    let cotas: Vec<CotaFundo> = [
+        ((2026, 3, 31), "1.00"),
+        ((2026, 4, 30), "1.00"),
+        ((2026, 5, 29), "1.00"),
+        ((2026, 6, 30), "1.00"),
+        ((2026, 7, 15), "1.00"),
+        ((2026, 7, 31), "1.00"),
+        ((2026, 8, 31), "1.01"),
+        ((2026, 9, 30), "1.01"),
+        ((2026, 10, 27), "1.01"),
+    ]
+    .iter()
+    .map(|&((a, m, d), c)| CotaFundo {
+        cnpj: "11222333000181".into(),
+        data: data(a, m, d),
+        cota: c.parse().unwrap(),
+    })
+    .collect();
+    db.gravar_cotas_fundo(&cotas).unwrap();
+    criar(
+        &db,
+        NovoInvestimento {
+            tipo: "fundo".into(),
+            instituicao: "Corretora Exemplo".into(),
+            emissor: s("Fundo Exemplo"),
+            data_aplicacao: s("2026-03-31"),
+            valor_aplicado_centavos: Some(1_000_000),
+            liquidez: s("diaria"),
+            ..Default::default()
+        },
+    );
+    let conn = rusqlite::Connection::open(dir.path().join("guru.db")).unwrap();
+    conn.execute(
+        "UPDATE investimentos SET codigo_b3 = '11222333000181', saldo_centavos = 1100000, \
+         saldo_data = ?1 WHERE tipo = 'fundo'",
+        [saldo_em],
+    )
+    .unwrap();
+    (dir, db)
+}
+
+/// Retornos dos intervalos que terminam em 31/05, 30/06, 31/07, 31/08, 30/09 e 28/10.
+fn retornos_do_fundo(db: &Db) -> Vec<Option<i64>> {
+    let h = historico(db, hoje(), 6, None).unwrap();
+    h.pontos[1..].iter().map(|p| p.retorno_centesimos).collect()
+}
+
+#[test]
+fn fundo_com_saldo_no_meio_do_mes_nao_conta_a_troca_de_base() {
+    let (_d, db) = fundo_com_saldo("2026-07-15");
+    // Junho a custo projetado (10.000), julho pelo saldo (11.000): o mês da troca fica neutro;
+    // agosto rende o 1% da cota.
+    assert_eq!(
+        retornos_do_fundo(&db),
+        [Some(0), Some(0), Some(0), Some(100), Some(0), Some(0)]
+    );
+}
+
+#[test]
+fn fundo_com_saldo_no_fim_do_mes_conta_o_mes_seguinte() {
+    let (_d, db) = fundo_com_saldo("2026-07-31");
+    // 31/07 vale o saldo do extrato; 31/08 é o mesmo saldo projetado pela cota: agosto conta.
+    assert_eq!(
+        retornos_do_fundo(&db),
+        [Some(0), Some(0), Some(0), Some(100), Some(0), Some(0)]
+    );
+}

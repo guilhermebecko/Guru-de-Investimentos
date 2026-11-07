@@ -316,7 +316,8 @@ fn migra_banco_da_versao_4() {
     {
         let conn = rusqlite::Connection::open(dir.path().join("guru.db")).unwrap();
         conn.execute_batch(
-            "DROP TABLE ia_gerado;
+            "DROP TABLE cota_fundo;
+             DROP TABLE ia_gerado;
              ALTER TABLE investimentos DROP COLUMN codigo_b3;
              ALTER TABLE investimentos DROP COLUMN saldo_centavos;
              ALTER TABLE investimentos DROP COLUMN saldo_data;
@@ -331,8 +332,8 @@ fn migra_banco_da_versao_4() {
         .unwrap();
     }
     let db = Db::open(dir.path()).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 8);
-    assert_eq!(SCHEMA_VERSION, 8);
+    assert_eq!(db.schema_version().unwrap(), 9);
+    assert_eq!(SCHEMA_VERSION, 9);
     let lista = db.listar_investimentos(hoje()).unwrap();
     assert_eq!(lista.len(), 1);
     assert_eq!(lista[0].codigo_b3, None);

@@ -2,11 +2,11 @@ use chrono::NaiveDate;
 use rusqlite::{OptionalExtension, params};
 use rust_decimal::Decimal;
 
-use super::{Cotacao, PontoDiario, PrecoTesouro};
+use super::{CotaFundo, Cotacao, PontoDiario, PrecoTesouro};
 use crate::db::{Db, classifica};
 use crate::error::CoreError;
 
-const FONTES: [&str; 5] = ["cdi", "selic", "ipca", "tesouro", "b3"];
+const FONTES: [&str; 6] = ["cdi", "selic", "ipca", "tesouro", "b3", "cvm"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatusFonte {
@@ -169,6 +169,64 @@ impl Db {
         }
         tx.commit().map_err(classifica)?;
         Ok(novos)
+    }
+
+    /// Upsert das cotas diárias de fundos; devolve quantas eram novas.
+    pub fn gravar_cotas_fundo(&self, cotas: &[CotaFundo]) -> Result<usize, CoreError> {
+        let tx = self.conn.unchecked_transaction().map_err(classifica)?;
+        let mut novas = 0;
+        {
+            let mut existe = tx
+                .prepare("SELECT 1 FROM cota_fundo WHERE cnpj = ?1 AND data = ?2")
+                .map_err(classifica)?;
+            let mut grava = tx
+                .prepare(
+                    "INSERT INTO cota_fundo (cnpj, data, cota) VALUES (?1, ?2, ?3) \
+                     ON CONFLICT (cnpj, data) DO UPDATE SET cota = excluded.cota",
+                )
+                .map_err(classifica)?;
+            for c in cotas {
+                let data = iso(c.data);
+                if !existe.exists(params![c.cnpj, data]).map_err(classifica)? {
+                    novas += 1;
+                }
+                grava
+                    .execute(params![c.cnpj, data, dec(c.cota)])
+                    .map_err(classifica)?;
+            }
+        }
+        tx.commit().map_err(classifica)?;
+        Ok(novas)
+    }
+
+    /// A última cota do fundo com data `<= data`, se houver.
+    pub fn cota_fundo_em(
+        &self,
+        cnpj: &str,
+        data: NaiveDate,
+    ) -> Result<Option<(NaiveDate, Decimal)>, CoreError> {
+        let linha: Option<(String, String)> = self
+            .conn
+            .query_row(
+                "SELECT data, cota FROM cota_fundo WHERE cnpj = ?1 AND data <= ?2 \
+                 ORDER BY data DESC LIMIT 1",
+                params![cnpj, iso(data)],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(classifica)?;
+        linha
+            .map(|(d, c)| Ok((data_de(d)?, decimal_de(c)?)))
+            .transpose()
+    }
+
+    /// A maior data de cota gravada, de qualquer fundo.
+    pub fn ultima_data_cota_fundo(&self) -> Result<Option<NaiveDate>, CoreError> {
+        let d: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(data) FROM cota_fundo", [], |r| r.get(0))
+            .map_err(classifica)?;
+        d.map(data_de).transpose()
     }
 
     /// Pontos da série com `de <= data <= ate`, em ordem de data.
@@ -415,7 +473,15 @@ impl Db {
         Ok(())
     }
 
-    /// As cinco fontes, na ordem fixa, mesmo as nunca atualizadas.
+    /// Esquece o status de `fonte`: ela volta a parecer nunca atualizada.
+    pub fn apagar_status(&self, fonte: &str) -> Result<(), CoreError> {
+        self.conn
+            .execute("DELETE FROM fonte_status WHERE fonte = ?1", [fonte])
+            .map_err(classifica)?;
+        Ok(())
+    }
+
+    /// As seis fontes, na ordem fixa, mesmo as nunca atualizadas.
     pub fn status_fontes(&self) -> Result<Vec<StatusFonte>, CoreError> {
         let mut out = Vec::new();
         for fonte in FONTES {

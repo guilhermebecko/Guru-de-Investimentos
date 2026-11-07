@@ -72,6 +72,7 @@ fn rotulo(fonte: &str) -> &'static str {
         "ipca" => "IPCA",
         "tesouro" => "Tesouro Direto",
         "b3" => "Cotações da B3",
+        "cvm" => "Cotas de fundos (CVM)",
         _ => "Fonte desconhecida",
     }
 }

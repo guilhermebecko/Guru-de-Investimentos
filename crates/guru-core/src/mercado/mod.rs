@@ -2,6 +2,7 @@
 
 mod atualizador;
 mod cotahist;
+mod cvm;
 mod rede;
 mod repositorio;
 mod sgs;
@@ -14,12 +15,13 @@ use chrono::NaiveDate;
 
 pub use atualizador::{ResultadoAtualizacao, atualizar, titulo_tesouro};
 pub use cotahist::{Cotacao, ler_cotahist_txt, ler_cotahist_zip};
+pub use cvm::{CotaFundo, ler_inf_diario_csv, ler_inf_diario_zip};
 pub use rede::{Baixador, BaixadorHttp, BaixadorPasta};
 pub use repositorio::{B3Alvo, StatusFonte};
 pub use sgs::{PontoDiario, ler_sgs};
 pub use tesouro::{PrecoTesouro, ler_tesouro};
 pub use valorizacao::{Origem, Valor, valorizar};
-pub(crate) use valorizacao::{Series, valorizar_com, valorizar_datas};
+pub(crate) use valorizacao::{Series, cota_base_serve, valorizar_com, valorizar_datas};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErroFonte {

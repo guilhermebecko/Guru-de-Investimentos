@@ -24,7 +24,7 @@ const cdb = {
   ir: "regressiva",
 };
 
-test("statusMercado lista as cinco fontes com rótulos, ainda sem dados", () => {
+test("statusMercado lista as seis fontes com rótulos, ainda sem dados", () => {
   const status = abrir().statusMercado();
   assert.deepEqual(
     status.map((s) => [s.fonte, s.rotulo]),
@@ -34,15 +34,16 @@ test("statusMercado lista as cinco fontes com rótulos, ainda sem dados", () => 
       ["ipca", "IPCA"],
       ["tesouro", "Tesouro Direto"],
       ["b3", "Cotações da B3"],
+      ["cvm", "Cotas de fundos (CVM)"],
     ],
   );
   assert.equal(status[0].ultimaData, undefined);
 });
 
-test("atualizarMercado resolve com 5 fontes e o CDB passa a ter valor calculado", async () => {
+test("atualizarMercado resolve com 6 fontes e o CDB passa a ter valor calculado", async () => {
   const core = abrir();
   const r = await core.atualizarMercado();
-  assert.equal(r.fontes.length, 5);
+  assert.equal(r.fontes.length, 6);
   assert.ok(r.novos > 0);
   assert.equal(r.fontes[0].ultimaData, "2026-10-28");
   const criado = core.criarInvestimento(cdb);

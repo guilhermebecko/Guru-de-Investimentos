@@ -191,6 +191,7 @@ fn montar(l: Linha) -> Result<Investimento, CoreError> {
         data_carencia: data_valida(&l.data_carencia),
         ir,
         observacao: l.observacao.clone(),
+        cnpj: None,
     };
 
     Ok(Investimento {
@@ -250,6 +251,9 @@ struct Colunas {
     data_carencia: Option<String>,
     ir: Option<&'static str>,
     observacao: Option<String>,
+    /// Vira `codigo_b3` quando o tipo é `fundo`.
+    cnpj: Option<String>,
+    e_fundo: bool,
     meta_id: Option<i64>,
 }
 
@@ -278,6 +282,8 @@ impl Colunas {
             data_carencia: iso(v.data_carencia),
             ir: v.ir.map(|i| i.codigo()),
             observacao: v.observacao,
+            cnpj: v.cnpj,
+            e_fundo: v.tipo.codigo == "fundo",
             meta_id,
         }
     }
@@ -349,11 +355,11 @@ pub(crate) fn inserir_validado(
     conn.execute(
         "INSERT INTO investimentos (tipo, instituicao, emissor, ticker, indexador, taxa, \
          benchmark, data_aplicacao, vencimento, valor_aplicado_centavos, quantidade, \
-         preco_medio_centavos, liquidez, data_carencia, ir, observacao, meta_id, criado_em, \
-         atualizado_em) VALUES (:tipo, :instituicao, :emissor, :ticker, :indexador, :taxa, \
+         preco_medio_centavos, liquidez, data_carencia, ir, observacao, codigo_b3, meta_id, \
+         criado_em, atualizado_em) VALUES (:tipo, :instituicao, :emissor, :ticker, :indexador, :taxa, \
          :benchmark, :data_aplicacao, :vencimento, :valor, :quantidade, :preco_medio, \
-         :liquidez, :data_carencia, :ir, :observacao, :meta_id, :agora, :agora)",
-        parametros!(c, agora),
+         :liquidez, :data_carencia, :ir, :observacao, :cnpj, :meta_id, :agora, :agora)",
+        parametros!(c, agora, ":cnpj": c.cnpj),
     )
     .map_err(classifica)?;
     Ok(conn.last_insert_rowid())
@@ -406,8 +412,10 @@ impl Db {
                  vencimento = :vencimento, valor_aplicado_centavos = :valor, \
                  quantidade = :quantidade, preco_medio_centavos = :preco_medio, \
                  liquidez = :liquidez, data_carencia = :data_carencia, ir = :ir, \
-                 observacao = :observacao, meta_id = :meta_id, atualizado_em = :agora WHERE id = :id",
-                parametros!(c, agora, ":id": id),
+                 observacao = :observacao, \
+                 codigo_b3 = CASE WHEN :e_fundo THEN :cnpj ELSE codigo_b3 END, \
+                 meta_id = :meta_id, atualizado_em = :agora WHERE id = :id",
+                parametros!(c, agora, ":id": id, ":e_fundo": c.e_fundo, ":cnpj": c.cnpj),
             )
             .map_err(classifica)?;
         if n == 0 {

@@ -348,3 +348,26 @@ test("Vincular a uma meta começa em Nenhuma, lista as metas e não grava metaId
     await app.close();
   }
 });
+
+test("fundo guarda o CNPJ e a edição o mostra formatado", async () => {
+  const app = await lancar();
+  try {
+    const page = await app.firstWindow();
+    await abrirNovo(page);
+    await page.getByLabel("Tipo").selectOption("fundo");
+    await page.getByLabel("Nome", { exact: true }).fill("Fundo Teste");
+    await page.getByLabel("CNPJ do fundo (opcional)").fill("123");
+    await page.getByLabel("Data da aplicação").fill("2025-03-15");
+    await page.getByLabel("Valor aplicado").fill("10.000,00");
+    await salvar(page);
+    await expect(page.locator("#e-cnpj")).toHaveText("CNPJ inválido. Confira os 14 dígitos.");
+    await page.getByLabel("CNPJ do fundo (opcional)").fill("11222333000181");
+    await salvar(page);
+    await expect(page.locator("main tbody tr").first()).toContainText("Fundo Teste");
+    await page.getByRole("link", { name: "Editar" }).click();
+    await expect(page.getByRole("heading", { name: "Editar investimento" })).toBeVisible();
+    await expect(page.getByLabel("CNPJ do fundo (opcional)")).toHaveValue("11.222.333/0001-81");
+  } finally {
+    await app.close();
+  }
+});

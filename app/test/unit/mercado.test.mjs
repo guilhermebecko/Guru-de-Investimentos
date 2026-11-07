@@ -9,6 +9,16 @@ const fontes = [
   { fonte: "tesouro", rotulo: "Tesouro Direto" },
 ];
 
+test("menorData ignora cvm", () => {
+  assert.equal(
+    menorData([
+      { fonte: "cdi", ultimaData: "2026-11-06" },
+      { fonte: "cvm", ultimaData: "2026-11-04" },
+    ]),
+    "2026-11-06",
+  );
+});
+
 test("menorData ignora o IPCA mensal e as fontes sem dados", () => {
   assert.equal(menorData(fontes), "2026-10-27");
   assert.equal(menorData([{ fonte: "ipca", ultimaData: "2026-09-01" }]), null);

@@ -1,16 +1,19 @@
 //! Baixa só o que falta das fontes oficiais e guarda pelo repositório.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::time::Duration;
 
 use chrono::{Datelike, Days, Months, NaiveDate, Utc};
 use rust_decimal::Decimal;
 
-use super::rede::{Baixador, url_b3, url_sgs, url_tesouro};
-use super::{B3Alvo, ErroFonte, PontoDiario, StatusFonte, ler_cotahist_zip, ler_sgs};
+use super::rede::{Baixador, url_b3, url_cvm, url_sgs, url_tesouro};
+use super::{
+    B3Alvo, ErroFonte, PontoDiario, StatusFonte, cota_base_serve, ler_cotahist_zip,
+    ler_inf_diario_zip, ler_sgs,
+};
 use crate::db::Db;
 use crate::error::CoreError;
-use crate::investimento::Investimento;
+use crate::investimento::{Investimento, normalizar_cnpj};
 
 const ESPERA_NOVA_TENTATIVA: Duration = Duration::from_secs(5);
 const ANOS_POR_CONSULTA: u32 = 10;
@@ -24,10 +27,17 @@ const MSG_BCB: &str = "O Banco Central não respondeu. Tente de novo mais tarde.
 const MSG_TESOURO: &str = "O Tesouro Transparente não respondeu. Tente de novo mais tarde.";
 const MSG_B3: &str = "A B3 não respondeu. Tente de novo mais tarde.";
 const MSG_B3_SEM_PREGAO: &str = "A B3 não publicou cotações nos últimos 7 dias.";
+const MSG_CVM: &str = "A CVM não respondeu. Tente de novo mais tarde.";
+/// Meses anteriores a este não são pedidos à CVM.
+const PRIMEIRO_MES_CVM: (i32, u32) = (2021, 1);
+/// Um mês da CVM está fechado quando foi baixado depois do seu último dia + 10 dias.
+const FOLGA_FECHAMENTO_CVM_DIAS: u64 = 10;
+/// O histórico do painel vai do mês de hoje − 13 até o mês de hoje.
+const MESES_JANELA_CVM: u32 = 13;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResultadoAtualizacao {
-    /// As cinco fontes, na ordem fixa, como ficaram depois da atualização.
+    /// As seis fontes, na ordem fixa, como ficaram depois da atualização.
     pub fontes: Vec<StatusFonte>,
     /// Quantas linhas novas foram gravadas (todas as fontes somadas).
     pub novos: usize,
@@ -65,6 +75,29 @@ fn chave_tesouro(tipo: &str, vencimento: NaiveDate) -> String {
     format!("tesouro:{tipo}:{}", iso(vencimento))
 }
 
+/// Marca "baixado em" de um CNPJ num mês da CVM: `cvm:<cnpj>:<AAAA-MM>`.
+fn chave_cvm(cnpj: &str, mes: NaiveDate) -> String {
+    format!("cvm:{cnpj}:{}", mes.format("%Y-%m"))
+}
+
+fn primeiro_do_mes(d: NaiveDate) -> NaiveDate {
+    d.with_day0(0).unwrap_or(d)
+}
+
+/// Fundos da carteira com CNPJ válido: (CNPJ, data da aplicação, data do saldo).
+fn fundos_com_cnpj(carteira: &[Investimento]) -> Vec<(String, NaiveDate, Option<NaiveDate>)> {
+    let data = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
+    carteira
+        .iter()
+        .filter(|i| i.tipo == "fundo")
+        .filter_map(|i| {
+            let cnpj = normalizar_cnpj(i.codigo_b3.as_deref()?)?;
+            let aplicacao = data(&i.data_aplicacao)?;
+            Some((cnpj, aplicacao, i.saldo_data.as_deref().and_then(data)))
+        })
+        .collect()
+}
+
 fn iso(d: NaiveDate) -> String {
     d.format("%Y-%m-%d").to_string()
 }
@@ -83,8 +116,9 @@ fn com_nova_tentativa<T>(
     }
 }
 
-/// Como `com_nova_tentativa`, mas o 404 do SGS é resposta definitiva (sem dados), sem repetir.
-fn com_nova_tentativa_sgs<T>(
+/// Como `com_nova_tentativa`, mas o 404 é resposta definitiva (SGS: sem dados; CVM: mês
+/// indisponível), sem repetir.
+fn com_nova_tentativa_exceto_404<T>(
     espera: &dyn Fn(Duration),
     mut f: impl FnMut() -> Result<T, ErroFonte>,
 ) -> Result<T, ErroFonte> {
@@ -188,6 +222,18 @@ pub fn atualizar(
         let mut aviso = None;
         let r = ctx.b3(&tickers, &mut novos, &mut aviso);
         ctx.fechar_b3(r, aviso)?;
+    }
+
+    // Sem fundo com CNPJ válido a CVM não é consultada, e um status de quando havia fica
+    // apagado: senão a fonte pediria atualização todo dia e um erro antigo continuaria à vista.
+    let fundos = fundos_com_cnpj(&carteira);
+    if fundos.is_empty() {
+        db.apagar_status("cvm")?;
+    } else {
+        let r = ctx.cvm(&fundos);
+        novos += ctx.fechar("cvm", r, MSG_CVM, |c| {
+            Ok(c.db.ultima_data_cota_fundo()?.map(iso))
+        })?;
     }
 
     Ok(ResultadoAtualizacao {
@@ -317,14 +363,14 @@ impl Contexto<'_> {
         let mut novos = 0;
         for (ini, fim) in janelas(de, ate) {
             let url = url_sgs(codigo, ini, fim);
-            let pontos =
-                match com_nova_tentativa_sgs(self.espera, || ler_sgs(&self.baixador.baixar(&url)?))
-                {
-                    Ok(p) => p,
-                    // 404 do SGS: o intervalo não tem dados novos (fim de semana, mês futuro).
-                    Err(ErroFonte::Status(404)) => Vec::new(),
-                    Err(e) => return Err(e.into()),
-                };
+            let pontos = match com_nova_tentativa_exceto_404(self.espera, || {
+                ler_sgs(&self.baixador.baixar(&url)?)
+            }) {
+                Ok(p) => p,
+                // 404 do SGS: o intervalo não tem dados novos (fim de semana, mês futuro).
+                Err(ErroFonte::Status(404)) => Vec::new(),
+                Err(e) => return Err(e.into()),
+            };
             novos += grava(&pontos)?;
         }
         Ok(novos)
@@ -354,7 +400,6 @@ impl Contexto<'_> {
     }
 
     fn ipca(&self) -> Result<usize, Falha> {
-        let primeiro_do_mes = |d: NaiveDate| d.with_day0(0).unwrap_or(d);
         let guardados = self.db.ipca_meses("0000-00", "9999-99")?;
         let mes_data = |m: &str| NaiveDate::parse_from_str(&format!("{m}-01"), "%Y-%m-%d").ok();
         let primeira = guardados.first().and_then(|(m, _)| mes_data(m));
@@ -511,5 +556,93 @@ impl Contexto<'_> {
             Err(_) => Ok(None),
             Ok(corpo) => Ok(ler_cotahist_zip(&corpo).ok()),
         }
+    }
+
+    /// Cotas dos fundos pela CVM: cada mês necessário é baixado uma vez e filtrado pelos CNPJs
+    /// que precisam dele. Depois, se a data da aplicação ou do saldo não tem cota até ela, ou
+    /// a última é de mais de 7 dias antes, o mês anterior também é processado.
+    fn cvm(&self, fundos: &[(String, NaiveDate, Option<NaiveDate>)]) -> Result<usize, Falha> {
+        let mes_hoje = primeiro_do_mes(self.hoje);
+        let janela = mes_hoje
+            .checked_sub_months(Months::new(MESES_JANELA_CVM))
+            .unwrap_or(mes_hoje);
+        let mut pedidos: BTreeMap<NaiveDate, HashSet<String>> = BTreeMap::new();
+        for (cnpj, aplicacao, saldo) in fundos {
+            let mes_aplicacao = primeiro_do_mes(*aplicacao);
+            let mut meses = vec![mes_aplicacao];
+            meses.extend(saldo.map(primeiro_do_mes));
+            let mut m = mes_aplicacao.max(janela);
+            while m <= mes_hoje {
+                meses.push(m);
+                match m.checked_add_months(Months::new(1)) {
+                    Some(prox) => m = prox,
+                    None => break,
+                }
+            }
+            for mes in meses {
+                if self.cvm_precisa(cnpj, mes)? {
+                    pedidos.entry(mes).or_default().insert(cnpj.clone());
+                }
+            }
+        }
+        let mut novos = self.cvm_baixar(&pedidos)?;
+
+        let mut anteriores: BTreeMap<NaiveDate, HashSet<String>> = BTreeMap::new();
+        for (cnpj, aplicacao, saldo) in fundos {
+            for base in std::iter::once(*aplicacao).chain(*saldo) {
+                if let Some((d, _)) = self.db.cota_fundo_em(cnpj, base)?
+                    && cota_base_serve(d, base)
+                {
+                    continue;
+                }
+                if let Some(mes) = primeiro_do_mes(base).checked_sub_months(Months::new(1))
+                    && self.cvm_precisa(cnpj, mes)?
+                {
+                    anteriores.entry(mes).or_default().insert(cnpj.clone());
+                }
+            }
+        }
+        novos += self.cvm_baixar(&anteriores)?;
+        Ok(novos)
+    }
+
+    /// O mês está no intervalo da CVM e, para este CNPJ, não tem marca ou a marca é anterior
+    /// ao fechamento (último dia + 10). Nunca mais de uma vez no mesmo dia.
+    fn cvm_precisa(&self, cnpj: &str, mes: NaiveDate) -> Result<bool, CoreError> {
+        let piso = NaiveDate::from_ymd_opt(PRIMEIRO_MES_CVM.0, PRIMEIRO_MES_CVM.1, 1)
+            .unwrap_or(NaiveDate::MIN);
+        if mes < piso || mes > primeiro_do_mes(self.hoje) {
+            return Ok(false);
+        }
+        let fechamento = mes
+            .checked_add_months(Months::new(1))
+            .and_then(|d| d.pred_opt())
+            .and_then(|d| d.checked_add_days(Days::new(FOLGA_FECHAMENTO_CVM_DIAS)))
+            .unwrap_or(NaiveDate::MAX);
+        Ok(match self.db.cobertura_desde(&chave_cvm(cnpj, mes))? {
+            None => true,
+            Some(marca) => marca < self.hoje && marca < fechamento,
+        })
+    }
+
+    /// Baixa cada mês uma vez; o 404 é mês indisponível (marca gravada, sem erro).
+    fn cvm_baixar(&self, pedidos: &BTreeMap<NaiveDate, HashSet<String>>) -> Result<usize, Falha> {
+        let mut novos = 0;
+        for (mes, cnpjs) in pedidos {
+            let url = url_cvm(mes.year(), mes.month());
+            let cotas = match com_nova_tentativa_exceto_404(self.espera, || {
+                ler_inf_diario_zip(&self.baixador.baixar(&url)?, cnpjs)
+            }) {
+                Ok(c) => c,
+                Err(ErroFonte::Status(404)) => Vec::new(),
+                Err(e) => return Err(e.into()),
+            };
+            novos += self.db.gravar_cotas_fundo(&cotas)?;
+            for cnpj in cnpjs {
+                self.db
+                    .gravar_marca_recente(&chave_cvm(cnpj, *mes), self.hoje)?;
+            }
+        }
+        Ok(novos)
     }
 }

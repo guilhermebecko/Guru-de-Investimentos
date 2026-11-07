@@ -25,5 +25,5 @@ publish: { provider: github, owner: guilhermebecko, repo: Guru-de-Investimentos,
 win: { target: nsis }
 nsis: { oneClick: true, perMachine: false, deleteAppDataOnUninstall: false }
 mac: { target: dmg, category: public.app-category.finance, notarize: false }
-linux: { target: [AppImage, deb], category: Office, synopsis: Carteira de investimentos com IA }
+linux: { target: [AppImage, deb], icon: icons, category: Office, synopsis: Carteira de investimentos com IA }
 deb: { maintainer: "Guilherme Becker <GuiBecko@users.noreply.github.com>" }
