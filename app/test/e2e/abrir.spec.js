@@ -51,7 +51,7 @@ test("--guru-smoke abre o núcleo numa pasta temporária, não cria janela e sai
       resolve(c);
     });
   });
-  expect(saida).toMatch(/GURU_SMOKE_OK app=0\.9\.0 nucleo=0\.9\.0 esquema=8/);
+  expect(saida).toMatch(/GURU_SMOKE_OK app=0\.9\.0 nucleo=0\.9\.0 esquema=9/);
   expect(codigo).toBe(0);
 });
 
