@@ -8,7 +8,8 @@ use rust_decimal::Decimal;
 
 use super::rede::{Baixador, url_b3, url_cvm, url_sgs, url_tesouro};
 use super::{
-    B3Alvo, ErroFonte, PontoDiario, StatusFonte, ler_cotahist_zip, ler_inf_diario_zip, ler_sgs,
+    B3Alvo, ErroFonte, PontoDiario, StatusFonte, cota_base_serve, ler_cotahist_zip,
+    ler_inf_diario_zip, ler_sgs,
 };
 use crate::db::Db;
 use crate::error::CoreError;
@@ -555,8 +556,8 @@ impl Contexto<'_> {
     }
 
     /// Cotas dos fundos pela CVM: cada mês necessário é baixado uma vez e filtrado pelos CNPJs
-    /// que precisam dele. Depois, se a data da aplicação ou do saldo não tem cota até ela, o
-    /// mês anterior também é processado.
+    /// que precisam dele. Depois, se a data da aplicação ou do saldo não tem cota até ela, ou
+    /// a última é de mais de 7 dias antes, o mês anterior também é processado.
     fn cvm(&self, fundos: &[(String, NaiveDate, Option<NaiveDate>)]) -> Result<usize, Falha> {
         let mes_hoje = primeiro_do_mes(self.hoje);
         let janela = mes_hoje
@@ -586,7 +587,9 @@ impl Contexto<'_> {
         let mut anteriores: BTreeMap<NaiveDate, HashSet<String>> = BTreeMap::new();
         for (cnpj, aplicacao, saldo) in fundos {
             for base in std::iter::once(*aplicacao).chain(*saldo) {
-                if self.db.cota_fundo_em(cnpj, base)?.is_some() {
+                if let Some((d, _)) = self.db.cota_fundo_em(cnpj, base)?
+                    && cota_base_serve(d, base)
+                {
                     continue;
                 }
                 if let Some(mes) = primeiro_do_mes(base).checked_sub_months(Months::new(1))

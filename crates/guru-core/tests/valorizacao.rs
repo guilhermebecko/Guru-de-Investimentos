@@ -707,3 +707,31 @@ fn fundo_antes_da_aplicacao_sem_dados() {
     assert_eq!(i.origem_valor, Origem::SemDados);
     assert_eq!(i.valor_atual_centavos, 100_000);
 }
+
+#[test]
+fn fundo_com_cota_base_antiga_nao_usa_a_cota() {
+    let (d, db) = vazio();
+    // Só há cota de 2023 antes da aplicação de 01/06/2024 (sábado): longe demais para base.
+    cotas(
+        &db,
+        &[
+            ((2023, 2, 10), "1.00"),
+            ((2023, 2, 28), "1.01"),
+            ((2024, 6, 3), "1.20"),
+            ((2026, 11, 5), "2.00"),
+        ],
+    );
+    let antigo = fundo_cnpj(&d, &db, "2023-02-10", 100_000, Some(CNPJ_FUNDO));
+    let novo = fundo_cnpj(&d, &db, "2024-06-01", 100_000, Some(CNPJ_FUNDO));
+    let i = db.investimento(antigo, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::Cota);
+    assert_eq!(i.valor_atual_centavos, 200_000);
+    let i = db.investimento(novo, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::SemDados);
+    assert_eq!(i.valor_atual_centavos, 100_000);
+    // Com saldo numa data sem cota próxima, vale o saldo do extrato.
+    grava_saldo(&d, novo, 110_000, "2024-06-01");
+    let i = db.investimento(novo, data(2026, 11, 7)).unwrap();
+    assert_eq!(i.origem_valor, Origem::Extrato);
+    assert_eq!(i.valor_atual_centavos, 110_000);
+}

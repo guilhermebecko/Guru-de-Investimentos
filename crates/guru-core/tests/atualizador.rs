@@ -728,6 +728,15 @@ fn linhas_cvm(mes: &str) -> Vec<(&'static str, &'static str, &'static str)> {
             (CNPJ_B, "2026-10-02", "2.211000000000"),
             (CNPJ_B, "2026-10-30", "2.220000000000"),
         ],
+        "202302" => vec![
+            (CNPJ_A, "2023-02-10", "1.000000000000"),
+            (CNPJ_A, "2023-02-28", "1.010000000000"),
+        ],
+        "202405" => vec![(CNPJ_A, "2024-05-31", "1.200000000000")],
+        "202406" => vec![
+            (CNPJ_A, "2024-06-03", "1.201000000000"),
+            (CNPJ_A, "2024-06-28", "1.210000000000"),
+        ],
         "202611" => vec![
             (CNPJ_A, "2026-11-03", "1.131000000000"),
             (CNPJ_A, "2026-11-05", "1.132000000000"),
@@ -1027,5 +1036,24 @@ fn cvm_ignora_meses_antes_de_2021() {
         .collect();
     assert_eq!(meses, esperados);
     assert!(meses.iter().all(|m| m.as_str() >= "202101"));
+    assert_eq!(status(&db, "cvm").erro, None);
+}
+
+#[test]
+fn cvm_cota_base_antiga_nao_cobre_a_aplicacao() {
+    let (dir, db) = abrir();
+    // Dois fundos no mesmo CNPJ, os dois antes da janela. O segundo foi aplicado num sábado
+    // (01/06/2024); a cota de 28/02/2023, do primeiro, não serve de base para ele.
+    criar_fundo(&dir, &db, "2023-02-10", Some(CNPJ_A));
+    criar_fundo(&dir, &db, "2024-06-01", Some(CNPJ_A));
+    let cvm = pasta_cvm(&["202302", "202405", "202406", "202609", "202610", "202611"]);
+    let falso = falso_cvm(&cvm);
+    atualizar(&db, &falso, hoje_cvm(), &Esperas::novo().fecha()).unwrap();
+
+    assert!(meses_pedidos(&falso).contains(&"202405".to_string()));
+    assert_eq!(
+        cota(&db, CNPJ_A, data(2024, 6, 1)),
+        Some((data(2024, 5, 31), dec("1.2")))
+    );
     assert_eq!(status(&db, "cvm").erro, None);
 }

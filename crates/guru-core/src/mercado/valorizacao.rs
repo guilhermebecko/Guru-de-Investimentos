@@ -20,6 +20,8 @@ const DIAS_UTEIS_ANO: i64 = 252;
 const PRAZO_IPCA_DIAS: u64 = 45;
 /// Quanto depois da aplicação a série guardada pode começar e ainda cobri-la.
 const FOLGA_COBERTURA_DIAS: u64 = 7;
+/// Quanto antes da data base (aplicação ou saldo) a cota base de um fundo ainda pode estar.
+const FOLGA_COTA_BASE_DIAS: u64 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origem {
@@ -184,7 +186,7 @@ fn fundo_pela_cota(
     ) else {
         return Ok(None);
     };
-    if saldo.is_some() && data_atual <= data_base {
+    if !cota_base_serve(data_base, base_data) || (saldo.is_some() && data_atual <= data_base) {
         return Ok(None);
     }
     let atual = Decimal::from(base)
@@ -199,6 +201,13 @@ fn fundo_pela_cota(
             Some(data_atual),
         )
     }))
+}
+
+/// A cota de `data_cota` serve de base para `base`: não é mais de 7 dias anterior a ela (fim
+/// de semana, feriado, dia 1º). Uma cota mais antiga é de outro período e daria valor errado.
+pub(crate) fn cota_base_serve(data_cota: NaiveDate, base: NaiveDate) -> bool {
+    base.checked_sub_days(Days::new(FOLGA_COTA_BASE_DIAS))
+        .is_none_or(|piso| data_cota >= piso)
 }
 
 /// Valor de `inv` em cada uma de `datas` (em ordem crescente), igual a chamar `valorizar_com`
