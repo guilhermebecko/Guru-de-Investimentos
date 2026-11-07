@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { formatoInstalado, criarAtualizacao } = require("./atualizacao.js");
 
-const URL_ULTIMA = "https://api.github.com/repos/GuiBecko/Guru-de-Investimentos/releases/latest";
+const URL_ULTIMA = "https://api.github.com/repos/guilhermebecko/Guru-de-Investimentos/releases/latest";
 const PRAZO_MS = 30000;
 const LIMITE_BYTES = 1024 * 1024;
 const FORMATOS_TESTE = new Set(["nsis", "appimage", "dmg", "deb"]);

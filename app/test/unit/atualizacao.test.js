@@ -6,8 +6,8 @@ const path = require("node:path");
 const { compararVersoes, lerRelease, formatoInstalado, criarAtualizacao } = require("../../main/atualizacao.js");
 const { criarBuscarUltima, criarFeedTeste } = require("../../main/atualizacao-electron.js");
 
-const PAGINA_PADRAO = "https://github.com/GuiBecko/Guru-de-Investimentos/releases/latest";
-const PAGINA_091 = "https://github.com/GuiBecko/Guru-de-Investimentos/releases/tag/v0.9.1";
+const PAGINA_PADRAO = "https://github.com/guilhermebecko/Guru-de-Investimentos/releases/latest";
+const PAGINA_091 = "https://github.com/guilhermebecko/Guru-de-Investimentos/releases/tag/v0.9.1";
 
 function pastaTemp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "guru-atualizacao-"));
@@ -183,8 +183,8 @@ test("latest_yml_com_outra_versao", async () => {
 test("pagina_fora_do_repositorio_vira_a_padrao", () => {
   for (const url of [
     "https://github.com/outro/Guru-de-Investimentos/releases/tag/v0.9.1",
-    "https://github.com/GuiBecko/Guru-de-Investimentos.evil.com/releases/x",
-    "http://github.com/GuiBecko/Guru-de-Investimentos/releases/tag/v0.9.1",
+    "https://github.com/guilhermebecko/Guru-de-Investimentos.evil.com/releases/x",
+    "http://github.com/guilhermebecko/Guru-de-Investimentos/releases/tag/v0.9.1",
     "javascript:alert(1)",
     undefined,
   ]) {
@@ -308,7 +308,7 @@ test("buscar_ultima_consulta_a_api_com_os_cabecalhos", async () => {
   const json = await criarBuscarUltima({ net, versaoApp: "0.9.0" })();
   assert.deepEqual(json, { tag_name: "v0.9.1", html_url: PAGINA_091 });
   assert.equal(pedidos.length, 1);
-  assert.equal(pedidos[0][0], "https://api.github.com/repos/GuiBecko/Guru-de-Investimentos/releases/latest");
+  assert.equal(pedidos[0][0], "https://api.github.com/repos/guilhermebecko/Guru-de-Investimentos/releases/latest");
   assert.deepEqual(pedidos[0][1].headers, { Accept: "application/vnd.github+json", "User-Agent": "GuruDeInvestimentos/0.9.0" });
   assert.ok(pedidos[0][1].signal instanceof AbortSignal);
 });

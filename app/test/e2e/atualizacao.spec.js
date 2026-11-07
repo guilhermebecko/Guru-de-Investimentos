@@ -55,7 +55,7 @@ test("nova versão no .deb: só o link da página, sem baixar", async () => {
     await expect(faixa).toContainText("Nova versão disponível: 9.9.0.");
     await expect(faixa.getByRole("link", { name: "Ver no GitHub" })).toHaveAttribute(
       "href",
-      "https://github.com/GuiBecko/Guru-de-Investimentos/releases/tag/v9.9.0",
+      "https://github.com/guilhermebecko/Guru-de-Investimentos/releases/tag/v9.9.0",
     );
     await expect(page.getByRole("button", { name: "Baixar e instalar" })).toHaveCount(0);
     const secao = await abrirSobre(page);

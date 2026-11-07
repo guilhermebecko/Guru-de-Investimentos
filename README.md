@@ -27,7 +27,7 @@ Um app para computador que conhece a sua carteira, o seu perfil de investidor e 
 
 ## Instalar
 
-Os instaladores ficam na [página de versões](https://github.com/GuiBecko/Guru-de-Investimentos/releases) do GitHub. Esta é uma versão de pré-lançamento: os avisos legais ainda vão passar por revisão jurídica antes da versão 1.0.
+Os instaladores ficam na [página de versões](https://github.com/guilhermebecko/Guru-de-Investimentos/releases) do GitHub. Esta é uma versão de pré-lançamento: os avisos legais ainda vão passar por revisão jurídica antes da versão 1.0.
 
 ### Qual arquivo baixar
 

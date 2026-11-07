@@ -7,7 +7,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const RELEASES = "https://github.com/GuiBecko/Guru-de-Investimentos/releases/";
+const RELEASES = "https://github.com/guilhermebecko/Guru-de-Investimentos/releases/";
 const PAGINA_PADRAO = `${RELEASES}latest`;
 const TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
 const INSTALAVEIS = new Set(["nsis", "appimage"]);

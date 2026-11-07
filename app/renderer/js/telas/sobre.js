@@ -5,7 +5,7 @@ import { AVISOS, CARTOES_SOBRE } from "../avisos.js";
 import { el } from "./_tabela.js";
 import { montarSecao } from "../atualizacao.js";
 
-const REPOSITORIO = "https://github.com/GuiBecko/Guru-de-Investimentos";
+const REPOSITORIO = "https://github.com/guilhermebecko/Guru-de-Investimentos";
 const FALHA_TERCEIROS = "Não foi possível carregar os avisos de terceiros.";
 
 let ultimoId = 0;
