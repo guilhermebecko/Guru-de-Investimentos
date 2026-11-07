@@ -97,6 +97,11 @@ function montar(raiz, catalogo, vigente, { id, inicial, metas }) {
     tipo.append(og);
   }
   const emissor = entrada("f-emissor", "text");
+  const cnpj = entrada("f-cnpj", "text", { placeholder: "00.000.000/0000-00", className: "num" });
+  cnpj.inputMode = "numeric";
+  const dicaCnpj = el("span", "Com o CNPJ, o valor atual vem da cota diária publicada pela CVM.", "hint");
+  dicaCnpj.id = "f-cnpj-dica";
+  cnpj.setAttribute("aria-describedby", dicaCnpj.id);
   const ticker = entrada("f-ticker", "text", { placeholder: "ex.: ITUB4", className: "caixa-alta" });
   const instituicao = select("f-instituicao", [
     ...catalogo.instituicoes.map((n) => ({ codigo: n, rotulo: n })),
@@ -153,6 +158,7 @@ function montar(raiz, catalogo, vigente, { id, inicial, metas }) {
 
   registrar("tipo", "Tipo", tipo);
   registrar("emissor", "Emissor", emissor, { classe: "span2", quando: Q.emissor });
+  registrar("cnpj", "CNPJ do fundo (opcional)", cnpj, { classe: "span2", quando: Q.cnpj, dica: dicaCnpj });
   registrar("ticker", "Ticker", ticker, { classe: "span2", quando: Q.ticker });
   registrar("instituicao", "Corretora ou banco", instituicao, { extra: [instituicaoOutra] });
   registrar("indexador", "Indexador", indexador, { quando: Q.indexador });
@@ -186,7 +192,7 @@ function montar(raiz, catalogo, vigente, { id, inicial, metas }) {
   form.append(
     geral,
     aviso,
-    ...secao("Identificação", () => true, "tipo", "emissor", "ticker", "instituicao"),
+    ...secao("Identificação", () => true, "tipo", "emissor", "cnpj", "ticker", "instituicao"),
     ...secao("Rentabilidade e prazo", rf, "indexador", "taxa"),
     ...secao("Posição", rv, "quantidade", "precoMedioCentavos"),
     ...secao("Valores e condições", () => true, "dataAplicacao", "vencimento", "valorAplicadoCentavos", "liquidez", "dataCarencia", "ir", "garantia", "metaId", "observacao"),
@@ -292,7 +298,7 @@ function montar(raiz, catalogo, vigente, { id, inicial, metas }) {
   function valores() {
     return {
       instituicao: instituicao.value === OUTRA ? instituicaoOutra.value : instituicao.value,
-      emissor: emissor.value, ticker: ticker.value, indexador: indexador.value, taxa: taxa.value,
+      emissor: emissor.value, cnpj: cnpj.value, ticker: ticker.value, indexador: indexador.value, taxa: taxa.value,
       benchmark: benchmark.value, dataAplicacao: data.value, vencimento: vencimento.value,
       valor: valor.value, quantidade: quantidade.value, preco: preco.value, liquidez: liquidez.value,
       dataCarencia: carencia.value, ir: ir.value, observacao: observacao.value, metaId: meta.value,
@@ -361,6 +367,7 @@ function montar(raiz, catalogo, vigente, { id, inicial, metas }) {
   };
   if (d.indexador && !indexador.disabled) indexador.value = d.indexador;
   poe(emissor, d.emissor);
+  poe(cnpj, d.cnpj);
   poe(ticker, d.ticker);
   poe(taxa, d.taxa === undefined || d.taxa === null ? d.taxa : String(d.taxa).replace(".", ","));
   poe(benchmark, d.benchmark);

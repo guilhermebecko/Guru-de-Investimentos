@@ -49,6 +49,7 @@ export const CAMPOS_DO_TIPO = {
   garantia: rf,
   metaId: sempre,
   observacao: sempre,
+  cnpj: (c) => c.tipo.codigo === "fundo",
 };
 
 export function campoDoTipo(nome, contexto) {
@@ -87,6 +88,7 @@ export function montarDados(tipo, v) {
   }
 
   if (tipo.exigeEmissor) texto("emissor", v.emissor);
+  if (tipo.codigo === "fundo") texto("cnpj", v.cnpj);
   texto("vencimento", v.vencimento);
   reais("valorAplicadoCentavos", v.valor);
   dados.liquidez = tipo.liquidezForcada ?? v.liquidez;

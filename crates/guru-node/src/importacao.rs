@@ -87,6 +87,7 @@ fn saida(n: NovoInvestimento) -> NovoInvestimentoJs {
         data_carencia: n.data_carencia,
         ir: n.ir,
         observacao: n.observacao,
+        cnpj: n.cnpj,
         meta_id: n.meta_id,
     }
 }

@@ -118,3 +118,13 @@ test("campoDoTipo diz quais campos cada tipo usa", () => {
   assert.equal(campoDoTipo("taxa", { tipo: undefined }), false);
   assert.equal(campoDoTipo("desconhecido", { tipo: CDB }), false);
 });
+
+test("o CNPJ só vai no tipo fundo", () => {
+  const v = { ...base, cnpj: "11.222.333/0001-81" };
+  assert.equal(montarDados(FUNDO, v).dados.cnpj, "11.222.333/0001-81");
+  assert.equal("cnpj" in montarDados(FUNDO, { ...base, cnpj: " " }).dados, false);
+  assert.equal("cnpj" in montarDados(CDB, v).dados, false);
+  assert.equal("cnpj" in montarDados(ACAO, v).dados, false);
+  assert.equal(campoDoTipo("cnpj", { tipo: FUNDO }), true);
+  assert.equal(campoDoTipo("cnpj", { tipo: CDB }), false);
+});

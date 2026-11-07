@@ -22,6 +22,8 @@ pub struct NovoInvestimento {
     pub data_carencia: Option<String>,
     pub ir: Option<String>,
     pub observacao: Option<String>,
+    /// CNPJ do fundo (só para o tipo `fundo`), com ou sem máscara.
+    pub cnpj: Option<String>,
     pub meta_id: Option<i64>,
 }
 
@@ -51,4 +53,6 @@ pub struct InvestimentoValido {
     pub data_carencia: Option<NaiveDate>,
     pub ir: Option<Ir>,
     pub observacao: Option<String>,
+    /// CNPJ do fundo com 14 dígitos (só para o tipo `fundo`).
+    pub cnpj: Option<String>,
 }

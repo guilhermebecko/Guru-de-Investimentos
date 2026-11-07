@@ -250,3 +250,57 @@ fn migra_banco_da_versao_1() {
     assert_eq!(SCHEMA_VERSION, 9);
     assert!(db.listar_investimentos(hoje()).unwrap().is_empty());
 }
+
+fn fundo(cnpj: Option<&str>) -> NovoInvestimento {
+    NovoInvestimento {
+        tipo: "fundo".into(),
+        instituicao: "BTG Pactual".into(),
+        emissor: s("Fundo Teste"),
+        cnpj: cnpj.map(str::to_string),
+        data_aplicacao: s("2025-03-15"),
+        valor_aplicado_centavos: Some(1_000_000),
+        liquidez: s("d30"),
+        ..Default::default()
+    }
+}
+
+fn codigo_b3(db: &Db, id: i64) -> Option<String> {
+    db.investimento(id, hoje()).unwrap().codigo_b3
+}
+
+#[test]
+fn fundo_com_cnpj_grava_o_codigo_b3() {
+    let (_d, db) = abrir();
+    let i = id(db
+        .criar_investimento(&fundo(Some("11.222.333/0001-81")), hoje())
+        .unwrap());
+    assert_eq!(codigo_b3(&db, i).as_deref(), Some("11222333000181"));
+}
+
+#[test]
+fn editar_fundo_sem_cnpj_apaga_o_codigo_b3() {
+    let (_d, db) = abrir();
+    let i = id(db
+        .criar_investimento(&fundo(Some("11222333000181")), hoje())
+        .unwrap());
+    db.atualizar_investimento(i, &fundo(None), hoje()).unwrap();
+    assert_eq!(codigo_b3(&db, i), None);
+}
+
+#[test]
+fn editar_acao_mantem_o_codigo_b3() {
+    let (d, db) = abrir();
+    let i = id(db
+        .criar_investimento(&rv("rv-acao", "ITUB4", 10, 3000), hoje())
+        .unwrap());
+    let conn = rusqlite::Connection::open(d.path().join("guru.db")).unwrap();
+    conn.execute(
+        "UPDATE investimentos SET codigo_b3 = 'ITUB4' WHERE id = ?1",
+        rusqlite::params![i],
+    )
+    .unwrap();
+    let mut novo = rv("rv-acao", "ITUB4", 20, 3000);
+    novo.cnpj = s("11222333000181");
+    db.atualizar_investimento(i, &novo, hoje()).unwrap();
+    assert_eq!(codigo_b3(&db, i).as_deref(), Some("ITUB4"));
+}

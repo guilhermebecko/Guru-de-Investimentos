@@ -3,6 +3,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::FromStr;
 
 use super::catalogo::{Benchmark, Forma, Indexador, Ir, Liquidez, TipoInfo, tipo};
+use super::cnpj::normalizar_cnpj;
 use super::modelo::{ErroCampo, InvestimentoValido, NovoInvestimento};
 
 fn erro(erros: &mut Vec<ErroCampo>, campo: &str, mensagem: &str) {
@@ -58,6 +59,22 @@ fn validar_observacao(novo: &NovoInvestimento, erros: &mut Vec<ErroCampo>) -> Op
         erro(erros, "observacao", "Use até 200 caracteres.");
     }
     obs
+}
+
+fn validar_cnpj(
+    novo: &NovoInvestimento,
+    info: &TipoInfo,
+    erros: &mut Vec<ErroCampo>,
+) -> Option<String> {
+    if info.codigo != "fundo" {
+        return None;
+    }
+    let informado = texto(&novo.cnpj)?;
+    let cnpj = normalizar_cnpj(&informado);
+    if cnpj.is_none() {
+        erro(erros, "cnpj", "CNPJ inválido. Confira os 14 dígitos.");
+    }
+    cnpj
 }
 
 fn validar_data_aplicacao(
@@ -266,6 +283,7 @@ pub fn validar(
     };
 
     let emissor = validar_emissor(novo, info, &mut erros);
+    let cnpj = validar_cnpj(novo, info, &mut erros);
     let mut ticker = None;
     let mut quantidade = None;
     let mut preco_medio = None;
@@ -348,6 +366,7 @@ pub fn validar(
             data_carencia: carencia,
             ir,
             observacao,
+            cnpj,
         }),
         _ => Err(erros),
     }
@@ -667,5 +686,45 @@ mod testes {
         let mut a = acao();
         a.quantidade = Some(0);
         assert_eq!(campos(validar(&a, hoje())), vec!["quantidade"]);
+    }
+
+    fn fundo(cnpj: Option<&str>) -> NovoInvestimento {
+        NovoInvestimento {
+            tipo: "fundo".into(),
+            instituicao: "BTG Pactual".into(),
+            emissor: s("Fundo Teste"),
+            cnpj: cnpj.map(str::to_string),
+            data_aplicacao: s("2025-03-15"),
+            valor_aplicado_centavos: Some(1_000_000),
+            liquidez: s("d30"),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn cnpj_do_fundo_vazio_ou_ausente_e_none() {
+        assert_eq!(validar(&fundo(None), hoje()).unwrap().cnpj, None);
+        assert_eq!(validar(&fundo(Some("  ")), hoje()).unwrap().cnpj, None);
+    }
+
+    #[test]
+    fn cnpj_do_fundo_valido_vira_14_digitos() {
+        let v = validar(&fundo(Some("11.222.333/0001-81")), hoje()).unwrap();
+        assert_eq!(v.cnpj.as_deref(), Some("11222333000181"));
+    }
+
+    #[test]
+    fn cnpj_do_fundo_invalido_marca_o_campo() {
+        let r = validar(&fundo(Some("123")), hoje());
+        assert_eq!(mensagem(r, "cnpj"), "CNPJ inválido. Confira os 14 dígitos.");
+    }
+
+    #[test]
+    fn cnpj_em_outro_tipo_e_ignorado() {
+        let mut novo = cdb();
+        novo.cnpj = s("11.222.333/0001-81");
+        assert_eq!(validar(&novo, hoje()).unwrap().cnpj, None);
+        novo.cnpj = s("123");
+        assert!(validar(&novo, hoje()).is_ok());
     }
 }
