@@ -24,7 +24,7 @@ const cdb = {
   ir: "regressiva",
 };
 
-test("statusMercado lista as cinco fontes com rótulos, ainda sem dados", () => {
+test("statusMercado lista as seis fontes com rótulos, ainda sem dados", () => {
   const status = abrir().statusMercado();
   assert.deepEqual(
     status.map((s) => [s.fonte, s.rotulo]),

@@ -240,7 +240,7 @@ test("painel pelo api: 12 meses responde e 3 meses dá PERIODO_INVALIDO", async 
   }
 });
 
-test("mercado pelo api: status das cinco fontes sem rede", async () => {
+test("mercado pelo api: status das seis fontes sem rede", async () => {
   const app = await lancar(novoDataDir());
   try {
     const page = await app.firstWindow();

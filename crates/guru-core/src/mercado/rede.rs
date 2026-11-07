@@ -53,8 +53,6 @@ pub(crate) fn url_b3(data: NaiveDate) -> String {
     format!("{PREFIXO_B3}{}{SUFIXO_B3}", data.format("%d%m%Y"))
 }
 
-// O atualizador (Task 2) passa a usar; até lá só os testes chamam.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn url_cvm(ano: i32, mes: u32) -> String {
     format!("{PREFIXO_CVM}{ano:04}{mes:02}{SUFIXO_CVM}")
 }
