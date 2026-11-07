@@ -304,14 +304,15 @@ impl Acumulador {
         let Some(pos) = self.posicao(e) else {
             return Ok(());
         };
-        if let Some(parcial) = self.json_parcial.remove(&pos) {
-            let entrada = if parcial.trim().is_empty() {
-                Value::Object(Default::default())
-            } else {
-                serde_json::from_str(&parcial).map_err(|_| ErroIa::Indisponivel)?
-            };
-            if let Some(b) = self.blocos.get_mut(pos) {
-                b["input"] = entrada;
+        if let Some(parcial) = self.json_parcial.remove(&pos)
+            && let Some(b) = self.blocos.get_mut(pos)
+        {
+            if !parcial.trim().is_empty() {
+                b["input"] = serde_json::from_str(&parcial).map_err(|_| ErroIa::Indisponivel)?;
+            } else if !b["input"].is_object() {
+                // Sem pedaços, o input é o que veio no `content_block_start` (as buscas chamadas
+                // de dentro da execução de código chegam assim, já completas); só falta o objeto.
+                b["input"] = Value::Object(Default::default());
             }
         }
         if let Some(marcas) = self.marcadores.remove(&pos) {
@@ -470,6 +471,47 @@ mod testes {
             Err(ErroIa::Indisponivel)
         );
         assert!(a.blocos().is_empty());
+    }
+
+    #[test]
+    fn input_completo_no_inicio_do_bloco_fica_como_veio() {
+        // Busca chamada de dentro da execução de código: o input chega inteiro no
+        // `content_block_start`, sem `input_json_delta`. Zerá-lo muda o histórico e a API
+        // recusa o pensamento que veio depois dele.
+        let bloco = json!({
+            "type": "server_tool_use",
+            "id": "srvtoolu_1",
+            "name": "web_search",
+            "input": {"query": "Copom Selic"},
+            "caller": {"type": "code_execution_20260120", "tool_id": "srvtoolu_0"}
+        });
+        let mut a = Acumulador::novo();
+        for e in [
+            json!({"type": "message_start", "message": {"usage": {}}}),
+            json!({"type": "content_block_start", "index": 0, "content_block": bloco}),
+            json!({"type": "content_block_stop", "index": 0}),
+        ] {
+            a.evento(&e).unwrap();
+        }
+        assert_eq!(a.blocos(), [bloco]);
+    }
+
+    #[test]
+    fn input_em_pedacos_substitui_o_vazio_do_inicio() {
+        let mut a = Acumulador::novo();
+        for e in [
+            json!({"type": "message_start", "message": {"usage": {}}}),
+            json!({"type": "content_block_start", "index": 0, "content_block":
+                {"type": "server_tool_use", "id": "s", "name": "web_search", "input": {}}}),
+            json!({"type": "content_block_delta", "index": 0, "delta":
+                {"type": "input_json_delta", "partial_json": "{\"query\": \"Se"}}),
+            json!({"type": "content_block_delta", "index": 0, "delta":
+                {"type": "input_json_delta", "partial_json": "lic\"}"}}),
+            json!({"type": "content_block_stop", "index": 0}),
+        ] {
+            a.evento(&e).unwrap();
+        }
+        assert_eq!(a.blocos()[0]["input"], json!({"query": "Selic"}));
     }
 
     #[test]
