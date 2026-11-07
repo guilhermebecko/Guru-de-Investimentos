@@ -14,7 +14,7 @@ pub use error::CoreError;
 pub use investimento::{
     Benchmark, Classe, ErroCampo, Forma, Garantia, Gravacao, INSTITUICOES, Indexador, Investimento,
     InvestimentoValido, Ir, Liquidez, MAX_CENTAVOS, NovoInvestimento, Resumo, ResumoClasse,
-    TipoInfo, nome, rendimento, tipo, tipos, validar,
+    TipoInfo, formatar_cnpj, nome, normalizar_cnpj, rendimento, tipo, tipos, validar,
 };
 
 pub use importacao::pdf;
@@ -35,9 +35,10 @@ pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub use metas::{Meta, NovaMeta, Progresso, Situacao, formatar_reais, progresso};
 
 pub use mercado::{
-    B3Alvo, Baixador, BaixadorHttp, BaixadorPasta, Cotacao, ErroFonte, Origem, PontoDiario,
-    PrecoTesouro, ResultadoAtualizacao, StatusFonte, Valor, atualizar, ler_cotahist_txt,
-    ler_cotahist_zip, ler_sgs, ler_tesouro, titulo_tesouro, valorizar,
+    B3Alvo, Baixador, BaixadorHttp, BaixadorPasta, CotaFundo, Cotacao, ErroFonte, Origem,
+    PontoDiario, PrecoTesouro, ResultadoAtualizacao, StatusFonte, Valor, atualizar,
+    ler_cotahist_txt, ler_cotahist_zip, ler_inf_diario_csv, ler_inf_diario_zip, ler_sgs,
+    ler_tesouro, titulo_tesouro, valorizar,
 };
 
 pub use painel::{
