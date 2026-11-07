@@ -1057,3 +1057,31 @@ fn cvm_cota_base_antiga_nao_cobre_a_aplicacao() {
     );
     assert_eq!(status(&db, "cvm").erro, None);
 }
+
+#[test]
+fn cvm_sem_fundo_com_cnpj_limpa_o_status_antigo() {
+    let (dir, db) = abrir();
+    let id = criar_fundo(&dir, &db, "2026-09-08", Some(CNPJ_A));
+    let cvm = pasta_cvm(&["202609", "202610", "202611"]);
+    let falso = Falso {
+        sem_rede: vec!["cvm.gov.br"],
+        ..falso_cvm(&cvm)
+    };
+    atualizar(&db, &falso, hoje_cvm(), &Esperas::novo().fecha()).unwrap();
+    assert_eq!(status(&db, "cvm").erro.as_deref(), Some(MSG_CVM));
+
+    // O usuário tira o CNPJ: a CVM deixa de ser usada e o erro antigo some.
+    let conn = rusqlite::Connection::open(dir.path().join("guru.db")).unwrap();
+    conn.execute(
+        "UPDATE investimentos SET codigo_b3 = NULL WHERE id = ?1",
+        [id],
+    )
+    .unwrap();
+    let falso = falso_cvm(&cvm);
+    atualizar(&db, &falso, data(2026, 11, 8), &Esperas::novo().fecha()).unwrap();
+    assert!(falso.com("cvm.gov.br").is_empty());
+    let st = status(&db, "cvm");
+    assert_eq!(st.erro, None);
+    assert_eq!(st.ultima_data, None);
+    assert_eq!(st.atualizado_em, None);
+}

@@ -473,6 +473,14 @@ impl Db {
         Ok(())
     }
 
+    /// Esquece o status de `fonte`: ela volta a parecer nunca atualizada.
+    pub fn apagar_status(&self, fonte: &str) -> Result<(), CoreError> {
+        self.conn
+            .execute("DELETE FROM fonte_status WHERE fonte = ?1", [fonte])
+            .map_err(classifica)?;
+        Ok(())
+    }
+
     /// As seis fontes, na ordem fixa, mesmo as nunca atualizadas.
     pub fn status_fontes(&self) -> Result<Vec<StatusFonte>, CoreError> {
         let mut out = Vec::new();

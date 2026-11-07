@@ -224,9 +224,12 @@ pub fn atualizar(
         ctx.fechar_b3(r, aviso)?;
     }
 
-    // Sem fundo com CNPJ válido a fonte fica intocada.
+    // Sem fundo com CNPJ válido a CVM não é consultada, e um status de quando havia fica
+    // apagado: senão a fonte pediria atualização todo dia e um erro antigo continuaria à vista.
     let fundos = fundos_com_cnpj(&carteira);
-    if !fundos.is_empty() {
+    if fundos.is_empty() {
+        db.apagar_status("cvm")?;
+    } else {
         let r = ctx.cvm(&fundos);
         novos += ctx.fechar("cvm", r, MSG_CVM, |c| {
             Ok(c.db.ultima_data_cota_fundo()?.map(iso))
