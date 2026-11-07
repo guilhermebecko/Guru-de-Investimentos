@@ -14,7 +14,7 @@ Para mudar um texto, mude os dois lugares juntos: o teste `app/test/unit/avisos.
 
 ## Dados de mercado (`MERCADO`)
 
-> Selic, CDI e IPCA vêm do Banco Central (SGS), as taxas e os preços do Tesouro Direto vêm do Tesouro Transparente e as cotações vêm do arquivo diário da B3, com o preço de fechamento do último pregão. Não há preço em tempo real. Fundos, previdência e cripto contam pelo valor aplicado. Os valores são brutos, antes do IR, e podem diferir do extrato da sua instituição. Rentabilidade passada não garante rentabilidade futura.
+> Selic, CDI e IPCA vêm do Banco Central (SGS), as taxas e os preços do Tesouro Direto vêm do Tesouro Transparente e as cotações vêm do arquivo diário da B3, com o preço de fechamento do último pregão. Não há preço em tempo real. Fundos com CNPJ usam a cota diária publicada pela CVM, que sai com alguns dias de atraso. Fundos sem CNPJ, previdência e cripto contam pelo saldo do último extrato importado ou, sem ele, pelo valor aplicado. Os valores são brutos, antes do IR, e podem diferir do extrato da sua instituição. Rentabilidade passada não garante rentabilidade futura.
 
 ## Privacidade (`PRIVACIDADE`)
 
