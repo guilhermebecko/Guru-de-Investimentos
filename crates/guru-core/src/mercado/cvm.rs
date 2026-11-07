@@ -74,15 +74,27 @@ pub fn ler_inf_diario_csv(
     Ok(saida)
 }
 
+/// Maior CSV descompactado aceito (um mês tem cerca de 11 MB).
+const LIMITE_CSV_BYTES: u64 = 512 * 1024 * 1024;
+
 /// Lê o primeiro `.csv` do zip; UTF-8 ou, se inválido, latin-1.
 pub fn ler_inf_diario_zip(
     bytes: &[u8],
     cnpjs: &HashSet<String>,
 ) -> Result<Vec<CotaFundo>, ErroFonte> {
+    ler_zip_ate(bytes, cnpjs, LIMITE_CSV_BYTES)
+}
+
+/// `ler_inf_diario_zip` com o CSV descompactado limitado a `limite` bytes.
+fn ler_zip_ate(
+    bytes: &[u8],
+    cnpjs: &HashSet<String>,
+    limite: u64,
+) -> Result<Vec<CotaFundo>, ErroFonte> {
     let invalido = || ErroFonte::Formato("arquivo da CVM não é um ZIP válido".into());
     let mut arquivo = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| invalido())?;
     for i in 0..arquivo.len() {
-        let mut entrada = arquivo.by_index(i).map_err(|_| invalido())?;
+        let entrada = arquivo.by_index(i).map_err(|_| invalido())?;
         if entrada
             .name()
             .map_err(|_| invalido())?
@@ -90,7 +102,13 @@ pub fn ler_inf_diario_zip(
             .ends_with(".csv")
         {
             let mut conteudo = Vec::new();
-            entrada.read_to_end(&mut conteudo).map_err(|_| invalido())?;
+            entrada
+                .take(limite.saturating_add(1))
+                .read_to_end(&mut conteudo)
+                .map_err(|_| invalido())?;
+            if conteudo.len() as u64 > limite {
+                return Err(ErroFonte::Formato("CSV da CVM maior que o limite".into()));
+            }
             let texto = match String::from_utf8(conteudo) {
                 Ok(t) => t,
                 Err(e) => e.into_bytes().iter().map(|&b| b as char).collect(),
@@ -204,6 +222,19 @@ mod testes {
         let sem_csv = zip_de("a.txt", b"x");
         assert!(matches!(
             ler_inf_diario_zip(&sem_csv, &f),
+            Err(ErroFonte::Formato(_))
+        ));
+    }
+
+    #[test]
+    fn recusa_csv_maior_que_o_limite() {
+        let f = filtro(&["11222333000181"]);
+        let csv = format!("{ANTIGO}FI;11.222.333/0001-81;2026-11-05;1;1.25;1;0;0;1\r\n");
+        let zip = zip_de("a.csv", csv.as_bytes());
+        let tamanho = csv.len() as u64;
+        assert_eq!(ler_zip_ate(&zip, &f, tamanho).unwrap().len(), 1);
+        assert!(matches!(
+            ler_zip_ate(&zip, &f, tamanho - 1),
             Err(ErroFonte::Formato(_))
         ));
     }
