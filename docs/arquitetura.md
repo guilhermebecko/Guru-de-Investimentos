@@ -93,8 +93,8 @@ Só a Anthropic recebe dado do usuário, com a chave dele e só as partes do con
 | `https://api.anthropic.com/v1/messages` (POST) | Perguntas ao Claude, com a chave do usuário | 6a |
 | `https://api.anthropic.com/v1/messages` (POST) | Insights e notícias do painel da Carteira, só pelos botões | 6b |
 | `https://api.anthropic.com/v1/models?limit=1` (GET) | Conferir a chave ao salvar, sem custo | 6a |
-| `https://api.github.com/repos/GuiBecko/Guru-de-Investimentos/releases/latest` (GET) | Procurar uma versão nova: ao abrir o app, se "Procurar atualizações ao abrir o app" estiver ligada, e pelo botão "Procurar agora". Processo principal. | 7 |
-| `https://github.com/GuiBecko/Guru-de-Investimentos/releases…` e `*.githubusercontent.com` | Baixar a versão nova pelo electron-updater (`releases.atom`, o `latest.yml` ou `latest-linux.yml` da tag e o instalador, com o redirecionamento do GitHub), só depois do clique em "Baixar e instalar", no Windows e no AppImage. Processo principal. | 7 |
+| `https://api.github.com/repos/guilhermebecko/Guru-de-Investimentos/releases/latest` (GET) | Procurar uma versão nova: ao abrir o app, se "Procurar atualizações ao abrir o app" estiver ligada, e pelo botão "Procurar agora". Processo principal. | 7 |
+| `https://github.com/guilhermebecko/Guru-de-Investimentos/releases…` e `*.githubusercontent.com` | Baixar a versão nova pelo electron-updater (`releases.atom`, o `latest.yml` ou `latest-linux.yml` da tag e o instalador, com o redirecionamento do GitHub), só depois do clique em "Baixar e instalar", no Windows e no AppImage. Processo principal. | 7 |
 
 Os pedidos ao GitHub não levam nenhum dado do usuário: só a versão do app no `User-Agent` (`GuruDeInvestimentos/<versão>`), além do IP. A procura leva `Accept: application/vnd.github+json`, tem prazo de 30 s e trata uma resposta acima de 1 MB como erro. Fora do app empacotado, sem `GURU_TESTE_ATUALIZACAO`, nada é consultado.
 

@@ -28,9 +28,9 @@ test("Sobre e avisos: versão, os seis textos de AVISOS e os avisos de terceiros
     const info = await page.evaluate(() => import("./js/api.js").then(({ api }) => api.app.info()));
     await expect(main(page)).toContainText(`Versão ${info.versaoApp} · Núcleo ${info.coreVersion}`);
     expect(info.versaoApp).toBe("0.9.0");
-    await expect(main(page).getByRole("link", { name: /github\.com\/GuiBecko\/Guru-de-Investimentos/ })).toHaveAttribute(
+    await expect(main(page).getByRole("link", { name: /github\.com\/guilhermebecko\/Guru-de-Investimentos/ })).toHaveAttribute(
       "href",
-      "https://github.com/GuiBecko/Guru-de-Investimentos",
+      "https://github.com/guilhermebecko/Guru-de-Investimentos",
     );
     await expect(main(page)).toContainText("Licença MIT");
     await expect(main(page).getByTestId("sobre-atualizacoes")).toHaveCount(1);

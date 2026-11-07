@@ -21,7 +21,7 @@ electronFuses:
   # Trocar os fusíveis altera o binário do Electron; sem certificado, o macOS arm64 só abre o app
   # com a assinatura ad hoc refeita depois disso.
   resetAdHocDarwinSignature: true
-publish: { provider: github, owner: GuiBecko, repo: Guru-de-Investimentos, releaseType: release }
+publish: { provider: github, owner: guilhermebecko, repo: Guru-de-Investimentos, releaseType: release }
 win: { target: nsis }
 nsis: { oneClick: true, perMachine: false, deleteAppDataOnUninstall: false }
 mac: { target: dmg, category: public.app-category.finance, notarize: false }
