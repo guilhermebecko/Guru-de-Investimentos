@@ -68,6 +68,10 @@ pub struct Valor {
     pub origem: Origem,
     /// Data dos dados usados; `None` quando não houve dado.
     pub data_referencia: Option<NaiveDate>,
+    /// Data do saldo do extrato que serviu de base (`Extrato`, ou `Cota` projetando o saldo);
+    /// `None` quando a base é o valor aplicado ou não há base. O painel usa para não contar a
+    /// troca de base como rentabilidade.
+    pub base_saldo: Option<NaiveDate>,
 }
 
 /// Séries diárias e mensais até a data de valorização, carregadas uma vez para a carteira.
@@ -121,7 +125,10 @@ pub(crate) fn valorizar_com(
     if inv.tipo == "fundo" || inv.tipo == "prev" || inv.tipo == "cripto" {
         let saldo = saldo_ate(inv, data);
         let do_extrato = || match saldo {
-            Some((s, ref_)) => com_atual(aplicado, s, Origem::Extrato, Some(ref_)),
+            Some((s, ref_)) => Valor {
+                base_saldo: Some(ref_),
+                ..com_atual(aplicado, s, Origem::Extrato, Some(ref_))
+            },
             None => valor(aplicado, Origem::SemFonte, None),
         };
         if inv.tipo == "fundo"
@@ -193,8 +200,9 @@ fn fundo_pela_cota(
         .checked_mul(cota_atual)
         .and_then(|v| v.checked_div(cota_base))
         .and_then(centavos);
-    Ok(atual.map(|a| {
-        com_atual(
+    Ok(atual.map(|a| Valor {
+        base_saldo: saldo.map(|(_, d)| d),
+        ..com_atual(
             inv.valor_aplicado_centavos,
             a,
             Origem::Cota,
@@ -292,6 +300,7 @@ fn valor(aplicado: i64, origem: Origem, ref_: Option<NaiveDate>) -> Valor {
         rentabilidade_decimos: 0,
         origem,
         data_referencia: ref_,
+        base_saldo: None,
     }
 }
 
@@ -301,6 +310,7 @@ fn com_atual(aplicado: i64, atual: i64, origem: Origem, ref_: Option<NaiveDate>)
         rentabilidade_decimos: rentabilidade(aplicado, atual),
         origem,
         data_referencia: ref_,
+        base_saldo: None,
     }
 }
 
