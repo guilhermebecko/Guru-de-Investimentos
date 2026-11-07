@@ -1,5 +1,5 @@
-// Gera build/icon.png (1024 × 1024): o verde da marca com um "G" em pixel creme, na identidade
-// do protótipo. Sem dependência: o PNG é montado à mão e comprimido com node:zlib.
+// Gera build/icon.png (1024 × 1024): o verde da marca com a escadinha em pixel branco, a mesma
+// marca que fica antes de "Guru" no menu lateral (`.side .logo::before` em base.css). Sem dependência: o PNG é montado à mão e comprimido com node:zlib.
 // Uso: node scripts/icone.mjs
 import { writeFileSync, mkdirSync } from "node:fs";
 import { deflateSync } from "node:zlib";
@@ -8,27 +8,23 @@ import { fileURLToPath } from "node:url";
 
 const LADO = 1024;
 const FUNDO = [0x04, 0x32, 0x1f]; // #04321F, --brand
-const CREME = [0xf3, 0xec, 0xd6]; // #F3ECD6
+const BRANCO = [0xff, 0xff, 0xff]; // #fff, a cor da marca no menu
 
-// "G" numa grade de 8 × 8 pixels; cada pixel vira um bloco de 80 px, centrado no ícone.
-const LETRA = [
-  "..####..",
-  ".##..##.",
-  "##......",
-  "##......",
-  "##..####",
-  "##....##",
-  ".##..##.",
-  "..####..",
+// A escadinha do menu numa grade de 4 × 3 pixels; cada pixel vira um bloco de 160 px, centrado.
+const MARCA = [
+  "..##",
+  ".##.",
+  "##..",
 ];
-const BLOCO = 80;
-const MARGEM = (LADO - LETRA.length * BLOCO) / 2;
+const BLOCO = 160;
+const MARGEM_X = (LADO - MARCA[0].length * BLOCO) / 2;
+const MARGEM_Y = (LADO - MARCA.length * BLOCO) / 2;
 
 function corEm(x, y) {
-  const c = Math.floor((x - MARGEM) / BLOCO);
-  const l = Math.floor((y - MARGEM) / BLOCO);
-  const dentro = x >= MARGEM && y >= MARGEM && l < LETRA.length && c < LETRA[0].length;
-  return dentro && LETRA[l][c] === "#" ? CREME : FUNDO;
+  const c = Math.floor((x - MARGEM_X) / BLOCO);
+  const l = Math.floor((y - MARGEM_Y) / BLOCO);
+  const dentro = x >= MARGEM_X && y >= MARGEM_Y && l < MARCA.length && c < MARCA[0].length;
+  return dentro && MARCA[l][c] === "#" ? BRANCO : FUNDO;
 }
 
 const TABELA_CRC = Array.from({ length: 256 }, (_, n) => {
