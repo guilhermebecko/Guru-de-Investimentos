@@ -60,7 +60,7 @@ xattr -dr com.apple.quarantine "/Applications/Guru de Investimentos.app"
 No Ubuntu e no Debian, instale o `.deb`:
 
 ```bash
-sudo apt install ./<caminho da pasta>/app/dist/Guru-de-Investimentos-0.9.0-linux-amd64.deb.deb
+sudo apt install ./<caminho da pasta>/app/dist/Guru-de-Investimentos-0.9.0-linux-amd64.deb
 ```
 
 Nos outros Linux, use o AppImage: `chmod +x <arquivo>.AppImage` e abra o arquivo. No Ubuntu 24.04, o AppImage esbarra na restrição de namespaces de usuário do AppArmor; nesse sistema, use o `.deb`. O app nunca é distribuído com `--no-sandbox`.
